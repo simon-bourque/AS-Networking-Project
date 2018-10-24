@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Winsock2.h>
+#include "Types.h"
 
 class Socket
 {
@@ -10,7 +11,8 @@ public:
 	~Socket();
 
 	void bind();
-	void listen();
+	void listenUDP(uint8* buffer, uint32 bufferSize);
+	void sendUDP();
 
 	Socket& operator=(Socket&& sock);
 private:

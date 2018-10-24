@@ -17,6 +17,7 @@ int main() {
 
 		// Create listen socket
 		Socket listenConnectionSocket = SocketManager::get()->createUDPSocket();
+		listenConnectionSocket.bind();
 
 		std::cout << "Started listening,.." << std::endl;
 		bool listening = true;
