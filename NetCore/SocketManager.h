@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Winsock2.h>
+#include "Socket.h"
 
 static constexpr char DEFAULT_PORT[] = "18081";
 
@@ -12,6 +12,8 @@ private:
 public:
 	SocketManager();
 	virtual ~SocketManager();
+
+	Socket createTCPSocket() const;
 
 	static void init() { s_instance = new SocketManager(); }
 	static void destroy() { delete s_instance; }

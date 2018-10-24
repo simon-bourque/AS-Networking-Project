@@ -19,10 +19,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Socket.cpp" />
     <ClCompile Include="SocketManager.cpp" />
     <ClCompile Include="ThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Socket.h" />
     <ClInclude Include="SocketManager.h" />
     <ClInclude Include="ThreadPool.h" />
     <ClInclude Include="Types.h" />

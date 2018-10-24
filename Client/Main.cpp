@@ -3,8 +3,9 @@
 #include "SocketManager.h"
 
 int main() {
-
 	SocketManager::init();
+
+	SocketManager::get()->createTCPSocket();
 
 	system("pause");
 
