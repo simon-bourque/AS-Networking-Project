@@ -6,11 +6,13 @@ class Socket
 {
 public:
 	Socket( SOCKET winSocket, addrinfo* addressInfo);
+	Socket(Socket&& sock);
 	~Socket();
 
 	void bind();
 	void listen();
 
+	Socket& operator=(Socket&& sock);
 private:
 	enum class SOCKET_TYPE
 	{
