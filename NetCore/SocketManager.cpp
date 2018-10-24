@@ -51,3 +51,28 @@ Socket SocketManager::createTCPSocket() const
 SocketManager::~SocketManager() {
 	WSACleanup();
 }
+
+Socket SocketManager::createUDPSocket() const {
+	addrinfo* result = nullptr;
+	addrinfo* ptr = nullptr;
+	addrinfo hints;
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_protocol = IPPROTO_UDP;
+	hints.ai_flags = AI_PASSIVE;
+
+	// Resolve the local address and port to be used by the server
+	int status = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
+	if (status != 0) {
+		throw std::runtime_error("Help... I've fallen... and I can't get up!");
+	}
+
+	SOCKET udpSocket = socket(result->ai_family, result->ai_protocol, result->ai_socktype);
+	if (udpSocket == INVALID_SOCKET) {
+		freeaddrinfo(result);
+		throw std::runtime_error("Help... I've fallen... and I can't get up!");
+	}
+
+	return { udpSocket, result };
+}

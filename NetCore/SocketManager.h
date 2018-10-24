@@ -14,6 +14,7 @@ public:
 	virtual ~SocketManager();
 
 	Socket createTCPSocket() const;
+	Socket createUDPSocket() const;
 
 	static void init() { s_instance = new SocketManager(); }
 	static void destroy() { delete s_instance; }
