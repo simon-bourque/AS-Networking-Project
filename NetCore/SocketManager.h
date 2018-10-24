@@ -2,6 +2,8 @@
 
 #include <Winsock2.h>
 
+static constexpr char DEFAULT_PORT[] = "18081";
+
 class SocketManager {
 private:
 	static SocketManager* s_instance;
