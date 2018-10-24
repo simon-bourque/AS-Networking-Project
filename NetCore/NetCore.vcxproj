@@ -19,10 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Test.cpp" />
+    <ClCompile Include="ThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Test.h" />
+    <ClInclude Include="ThreadPool.h" />
+    <ClInclude Include="Types.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{F18EB99E-39C6-4666-8941-E28FF26F9D52}</ProjectGuid>

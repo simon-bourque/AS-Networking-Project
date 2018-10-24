@@ -1,8 +1,6 @@
-#include "Test.h"
 #include <iostream>
 
 int main() {
-	test();
-	system("pause");
+	// Create listen thread
 	return 0;
 }
