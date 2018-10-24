@@ -68,11 +68,45 @@ Socket SocketManager::createUDPSocket() const {
 		throw std::runtime_error("Help... I've fallen... and I can't get up!");
 	}
 
-	SOCKET udpSocket = socket(result->ai_family, result->ai_protocol, result->ai_socktype);
+	SOCKET udpSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	if (udpSocket == INVALID_SOCKET) {
 		freeaddrinfo(result);
-		throw std::runtime_error("Help... I've fallen... and I can't get up!");
+		int errorCode = WSAGetLastError();
+		throw std::runtime_error("Failed to create socket: " + SocketManager::WSAErrorCodeToString(errorCode));
 	}
 
 	return { udpSocket, result };
+}
+
+std::string SocketManager::WSAErrorCodeToString(int errorCode) {
+	switch (errorCode) {
+	case WSANOTINITIALISED:
+		return "WSA not initialized.";
+	case WSAENETDOWN:
+		return "Network service provider failed.";
+	case WSAEAFNOSUPPORT:
+		return "Unsupported address family.";
+	case WSAEINPROGRESS:
+		return "WSA call already in progress.";
+	case WSAEMFILE:
+		return "No more socket descriptors.";
+	case WSAEINVAL:
+		return "Invalid argument.";
+	case WSAEINVALIDPROVIDER:
+		return "Invalid service provider version.";
+	case WSAEINVALIDPROCTABLE:
+		return "Service provider returned invalid procedure table.";
+	case WSAENOBUFS:
+		return "No more buffer space.";
+	case WSAEPROTONOSUPPORT:
+		return "Unsupported protocol.";
+	case WSAEPROTOTYPE:
+		return "Wrong protocol type for socket.";
+	case WSAEPROVIDERFAILEDINIT:
+		return "Service provider not initialized.";
+	case WSAESOCKTNOSUPPORT:
+		return "Unsupported socket type.";
+	default:
+		return "Unknown error.";
+	}
 }

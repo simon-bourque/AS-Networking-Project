@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Socket.h"
+#include <string>
 
 static constexpr char DEFAULT_PORT[] = "18081";
 
@@ -19,5 +20,7 @@ public:
 	static void init() { s_instance = new SocketManager(); }
 	static void destroy() { delete s_instance; }
 	static SocketManager* get() { return s_instance; }
+
+	static std::string WSAErrorCodeToString(int errorCode);
 };
 

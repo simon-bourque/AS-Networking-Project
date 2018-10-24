@@ -15,12 +15,17 @@ int main() {
 
 		CallbackMayRunLong(instance);
 
+		// Create listen socket
+		Socket listenConnectionSocket = SocketManager::get()->createUDPSocket();
+
+		std::cout << "Started listening,.." << std::endl;
 		bool listening = true;
 		while (listening) {
 			
 		}
 	}, nullptr);
-	
+
+	ThreadPool::get()->clean();
 	ThreadPool::destroy();
 	SocketManager::destroy();
 	return 0;
