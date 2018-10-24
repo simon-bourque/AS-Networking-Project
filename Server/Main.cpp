@@ -1,10 +1,12 @@
 #include <iostream>
 
+#include "SocketManager.h"
 #include "ThreadPool.h"
 
 int main() {
 	std::cout << "Initializing server..." << std::endl;
 
+	SocketManager::init();
 	ThreadPool::init();
 
 	// Create listen thread
@@ -20,5 +22,6 @@ int main() {
 	}, nullptr);
 	
 	ThreadPool::destroy();
+	SocketManager::destroy();
 	return 0;
 }
