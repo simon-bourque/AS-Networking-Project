@@ -2,6 +2,7 @@
 
 #include "SocketManager.h"
 #include "ThreadPool.h"
+#include "UDPSocket.h"
 
 int main() {
 	std::cout << "Initializing server..." << std::endl;
@@ -16,13 +17,15 @@ int main() {
 		CallbackMayRunLong(instance);
 
 		// Create listen socket
-		Socket listenConnectionSocket = SocketManager::get()->createUDPSocket();
-		listenConnectionSocket.bind();
+		UDPSocket listenerSocket(nullptr, DEFAULT_PORT);
+		listenerSocket.bind();
 
-		std::cout << "Started listening,.." << std::endl;
+		std::cout << "Started listening..." << std::endl;
 		bool listening = true;
 		while (listening) {
-			
+			uint8 buffer[512];
+			listenerSocket.recieve(buffer, 512);
+			std::cout << "Recieved packet" << std::endl;
 		}
 	}, nullptr);
 
