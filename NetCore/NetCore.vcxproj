@@ -23,6 +23,7 @@
     <ClCompile Include="TCPSocket.cpp" />
     <ClCompile Include="ThreadPool.cpp" />
     <ClCompile Include="UDPSocket.cpp" />
+    <ClCompile Include="WSA.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Socket.h" />
@@ -30,6 +31,7 @@
     <ClInclude Include="ThreadPool.h" />
     <ClInclude Include="Types.h" />
     <ClInclude Include="UDPSocket.h" />
+    <ClInclude Include="WSA.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{F18EB99E-39C6-4666-8941-E28FF26F9D52}</ProjectGuid>

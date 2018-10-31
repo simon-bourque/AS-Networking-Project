@@ -3,6 +3,8 @@
 #include <winsock2.h>
 #include "Types.h"
 
+#include <string>
+
 static constexpr char DEFAULT_PORT[] = "18081";
 
 class Socket
@@ -26,6 +28,8 @@ public:
 
 	Socket& operator=(Socket&& sock);
 protected:
+	std::string WSAErrorCodeToString(int errorCode);
+
 	SOCKET _winSocket;
 	addrinfo* _addressInfo;
 };
