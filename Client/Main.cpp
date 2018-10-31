@@ -2,14 +2,15 @@
 
 #include "UDPSocket.h"
 #include "WSA.h"
+#include "Messages.h"
 
 int main() {
 
 	WSA::init();
 
 	UDPSocket testSocket("localhost", DEFAULT_PORT);
-	uint8 testData[3] = { 'a', 'b', 'c' };
-	testSocket.send(Packet(testData, 3));
+	MessageType type = MessageType::MSG_REGISTER;
+	testSocket.send(Packet(reinterpret_cast<uint8*>(&type), 1));
 
 	system("pause");
 

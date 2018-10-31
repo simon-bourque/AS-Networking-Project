@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Messages.cpp" />
     <ClCompile Include="Packet.cpp" />
     <ClCompile Include="Socket.cpp" />
     <ClCompile Include="TCPSocket.cpp" />
@@ -27,6 +28,7 @@
     <ClCompile Include="WSA.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Messages.h" />
     <ClInclude Include="Packet.h" />
     <ClInclude Include="Socket.h" />
     <ClInclude Include="TCPSocket.h" />

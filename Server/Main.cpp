@@ -6,6 +6,7 @@
 #include "ThreadPool.h"
 #include "WSA.h"
 #include "Connection.h"
+#include "Messages.h"
 
 std::unordered_map<std::string, Connection> g_connections;
 
@@ -30,7 +31,7 @@ int main() {
 		while (listening) {
 			Packet packet = listenerSocket.receive();
 
-			std::cout << "[Receive] REGISTER message" << std::endl;
+			std::cout << "[Receive] " << messageTypeToString(static_cast<MessageType>(packet.getMessageData()[0])) << " message" << std::endl;
 		}
 	}, nullptr);
 
