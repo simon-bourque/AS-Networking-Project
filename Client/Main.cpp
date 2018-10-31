@@ -1,12 +1,17 @@
 #include <iostream>
 
-#include "SocketManager.h"
 #include "UDPSocket.h"
 
-int main() {
-	SocketManager::init();
+#include <Windows.h>
 
-	//SocketManager::get()->createTCPSocket();
+int main() {
+
+	// Initialize Winsock
+	WSADATA wsaData;
+	int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (result != 0) {
+		throw std::runtime_error("Could not initialize Winsock.");
+	}
 
 	UDPSocket testSocket("localhost", DEFAULT_PORT);
 	uint8 testData[3] = { 'a', 'b', 'c' };
@@ -14,7 +19,7 @@ int main() {
 
 	system("pause");
 
-	SocketManager::destroy();
+	WSACleanup();
 
 	return 0;
 }

@@ -20,13 +20,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Socket.cpp" />
-    <ClCompile Include="SocketManager.cpp" />
+    <ClCompile Include="TCPSocket.cpp" />
     <ClCompile Include="ThreadPool.cpp" />
     <ClCompile Include="UDPSocket.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Socket.h" />
-    <ClInclude Include="SocketManager.h" />
+    <ClInclude Include="TCPSocket.h" />
     <ClInclude Include="ThreadPool.h" />
     <ClInclude Include="Types.h" />
     <ClInclude Include="UDPSocket.h" />

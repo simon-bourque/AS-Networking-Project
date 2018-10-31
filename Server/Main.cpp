@@ -1,14 +1,20 @@
 #include <iostream>
 
-#include "SocketManager.h"
-#include "ThreadPool.h"
 #include "UDPSocket.h"
+//#include "TCPSocket.h"
+#include "ThreadPool.h"
 
 int main() {
 	std::cout << "Initializing server..." << std::endl;
 
-	SocketManager::init();
 	ThreadPool::init();
+
+	// Initialize Winsock
+	WSADATA wsaData;
+	int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (result != 0) {
+		throw std::runtime_error("Could not initialize Winsock.");
+	}
 
 	// Create listen thread
 	ThreadPool::get()->submit([](PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
@@ -24,13 +30,15 @@ int main() {
 		bool listening = true;
 		while (listening) {
 			uint8 buffer[512];
-			listenerSocket.recieve(buffer, 512);
-			std::cout << "Recieved packet" << std::endl;
+			listenerSocket.receive(buffer, 512);
+			std::cout << "received packet" << std::endl;
 		}
 	}, nullptr);
 
 	ThreadPool::get()->clean();
 	ThreadPool::destroy();
-	SocketManager::destroy();
+
+	WSACleanup();
+
 	return 0;
 }

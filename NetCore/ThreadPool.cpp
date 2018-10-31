@@ -2,7 +2,6 @@
 
 #include "Types.h"
 
-
 ThreadPool* ThreadPool::s_instance = nullptr;
 
 VOID CALLBACK MyWorkCallback(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
@@ -23,7 +22,6 @@ ThreadPool::ThreadPool() {
 	SetThreadpoolCallbackPool(&m_callbackEnvironment, m_pool);
 	SetThreadpoolCallbackCleanupGroup(&m_callbackEnvironment, m_cleanUpGroup, NULL);
 }
-
 
 ThreadPool::~ThreadPool() {
 	CloseThreadpoolCleanupGroupMembers(m_cleanUpGroup, TRUE, NULL);
