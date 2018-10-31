@@ -9,7 +9,7 @@ int main() {
 
 	UDPSocket testSocket("localhost", DEFAULT_PORT);
 	uint8 testData[3] = { 'a', 'b', 'c' };
-	testSocket.send(testData, 3);
+	testSocket.send(Packet(testData, 3));
 
 	system("pause");
 

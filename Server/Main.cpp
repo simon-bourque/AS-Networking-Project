@@ -1,9 +1,13 @@
 #include <iostream>
+#include <unordered_map>
 
 #include "UDPSocket.h"
 #include "TCPSocket.h"
 #include "ThreadPool.h"
 #include "WSA.h"
+#include "Connection.h"
+
+std::unordered_map<std::string, Connection> g_connections;
 
 int main() {
 	std::cout << "Initializing server..." << std::endl;
@@ -24,9 +28,9 @@ int main() {
 		std::cout << "Started listening..." << std::endl;
 		bool listening = true;
 		while (listening) {
-			uint8 buffer[512];
-			listenerSocket.receive(buffer, 512);
-			std::cout << "received packet" << std::endl;
+			Packet packet = listenerSocket.receive();
+
+			std::cout << "[Receive] REGISTER message" << std::endl;
 		}
 	}, nullptr);
 

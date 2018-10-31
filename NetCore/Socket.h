@@ -2,6 +2,7 @@
 
 #include <winsock2.h>
 #include "Types.h"
+#include "Packet.h"
 
 #include <string>
 
@@ -23,8 +24,8 @@ public:
 
 	void bind();
 
-	virtual void send(uint8* buffer, uint32 bufferSize) = 0;
-	virtual void receive(uint8* buffer, uint32 bufferSize) = 0;
+	virtual void send(const Packet& packet) = 0;
+	virtual Packet receive() = 0;
 
 	Socket& operator=(Socket&& sock);
 protected:
