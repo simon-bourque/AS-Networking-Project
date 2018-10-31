@@ -35,6 +35,47 @@ int main() {
 		}
 	}, nullptr);
 
+	//ThreadPool::get()->submit([](PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
+	//	UNREFERENCED_PARAMETER(work);
+
+	//	CallbackMayRunLong(instance);
+
+	//	// Create listen socket
+	//	UDPSocket listenerSocket(nullptr, DEFAULT_PORT);
+	//	listenerSocket.bind();
+
+	//	std::cout << "Started listening..." << std::endl;
+	//	bool listening = true;
+	//	while (listening) {
+	//		uint8 buffer[512];
+	//		listenerSocket.receive(buffer, 512);
+	//		std::cout << "received packet" << std::endl;
+	//	}
+	//}, nullptr);
+
+	// Using main thread as listen thread
+	TCPSocket listenerSocket(nullptr, DEFAULT_PORT);
+	listenerSocket.bind();
+
+	std::cout << "Started listening..." << std::endl;
+	listenerSocket.listen();
+
+	bool listening = true;
+	while (listening) {
+		TCPSocket clientSocket = listenerSocket.accept();
+		std::cout << "Accepted connection..." << std::endl;
+
+		ThreadPool::get()->submit([](PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
+			UNREFERENCED_PARAMETER(work);
+
+			CallbackMayRunLong(instance);
+
+			// Receive data from connection until client shuts down connection
+			// https://docs.microsoft.com/en-us/windows/desktop/winsock/receiving-and-sending-data-on-the-server
+			
+		}, nullptr);
+	}
+
 	ThreadPool::get()->clean();
 	ThreadPool::destroy();
 	WSA::destroy();

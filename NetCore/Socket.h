@@ -1,6 +1,6 @@
 #pragma once
 
-#include <winsock2.h>
+#include <Winsock2.h>
 #include "Types.h"
 #include "Packet.h"
 
