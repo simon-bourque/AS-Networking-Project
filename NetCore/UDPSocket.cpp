@@ -1,7 +1,5 @@
 #include "UDPSocket.h"
 
-
-
 UDPSocket::UDPSocket(const char* address, const char* port) : Socket(address, port, Socket::SOCKET_TYPE::UDP) {}
 
 void UDPSocket::send(const Packet& packet) {

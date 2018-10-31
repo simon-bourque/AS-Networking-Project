@@ -30,8 +30,16 @@ int main() {
 		bool listening = true;
 		while (listening) {
 			Packet packet = listenerSocket.receive();
+			MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
+			std::cout << "[Receive] " << messageTypeToString(type) << " message" << std::endl;
 
-			std::cout << "[Receive] " << messageTypeToString(static_cast<MessageType>(packet.getMessageData()[0])) << " message" << std::endl;
+			switch (type) {
+			case MessageType::MSG_REGISTER:
+				const RegisterMessage* msg = reinterpret_cast<const RegisterMessage*>(packet.getMessageData() + 1);
+				std::cout << msg->reqNum << std::endl;
+				std::cout << msg->name << std::endl;
+				break;
+			}
 		}
 	}, nullptr);
 

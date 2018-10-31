@@ -23,3 +23,17 @@ enum class MessageType : uint8 {
 };
 
 std::string messageTypeToString(MessageType msgType);
+
+struct RegisterMessage {
+	uint32 reqNum;
+	char name[128];
+	char iPAddress[128];
+	char port[16];
+};
+
+struct RegisteredMessage {
+	uint32 reqNum;
+	char name[128];
+	char iPAddress[128];
+	char port[16];
+};
