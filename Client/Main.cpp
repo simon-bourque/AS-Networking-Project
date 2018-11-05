@@ -10,16 +10,15 @@ int main() {
 	WSA::init();
 
 	UDPSocket udpSocket("localhost", DEFAULT_PORT);
+	
 	RegisterMessage registerMsg;
 	registerMsg.reqNum = 1234;
 	memcpy(registerMsg.name, "SpookySkeleton", 15);
 	registerMsg.iPAddress[0] = '\0';
 	registerMsg.port[0] = '\0';
-	uint8* buffer = new uint8[1 + sizeof(registerMsg)];
-	buffer[0] = static_cast<uint8>(MessageType::MSG_REGISTER);
-	memcpy(buffer + 1, &registerMsg, sizeof(registerMsg));
-	udpSocket.send(Packet(buffer, 1 + sizeof(registerMsg)));
-	delete[] buffer;
+
+	Packet packet = serializeMessage(registerMsg);
+	udpSocket.send(packet);
 	
 	//uint8 testData[3] = { 'a', 'b', 'c' };
 	//Packet testPacket(testData, sizeof(testData)/sizeof(testData[0]));

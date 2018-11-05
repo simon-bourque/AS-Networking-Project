@@ -35,9 +35,9 @@ int main() {
 
 			switch (type) {
 			case MessageType::MSG_REGISTER:
-				const RegisterMessage* msg = reinterpret_cast<const RegisterMessage*>(packet.getMessageData() + 1);
-				std::cout << msg->reqNum << std::endl;
-				std::cout << msg->name << std::endl;
+				RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
+				std::cout << msg.reqNum << std::endl;
+				std::cout << msg.name << std::endl;
 				break;
 			}
 		}

@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Types.h"
+#include "Packet.h"
 #include <string>
+#include <cassert>
 
 enum class MessageType : uint8 {
 	MSG_REGISTER,
@@ -24,7 +26,26 @@ enum class MessageType : uint8 {
 
 std::string messageTypeToString(MessageType msgType);
 
+template<typename T>
+Packet serializeMessage(const T& msg) {
+	const uint32 size = sizeof(T);
+	uint8 buffer[size];
+	memcpy(buffer, &msg, size);
+
+	return Packet(buffer, size);
+}
+
+template<typename T>
+T deserializeMessage(const Packet& packet) {
+	assert(packet.getMessageSize() == sizeof(T));
+
+	T msg = *(reinterpret_cast<const T*>(packet.getMessageData()));
+
+	return msg;
+}
+
 struct RegisterMessage {
+	const MessageType type = MessageType::MSG_REGISTER;
 	uint32 reqNum;
 	char name[128];
 	char iPAddress[128];
@@ -32,6 +53,7 @@ struct RegisterMessage {
 };
 
 struct RegisteredMessage {
+	const MessageType type = MessageType::MSG_REGISTERED;
 	uint32 reqNum;
 	char name[128];
 	char iPAddress[128];
