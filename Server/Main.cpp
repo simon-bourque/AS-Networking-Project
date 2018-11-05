@@ -36,8 +36,10 @@ int main() {
 			switch (type) {
 			case MessageType::MSG_REGISTER:
 				RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
-				std::cout << msg.reqNum << std::endl;
-				std::cout << msg.name << std::endl;
+
+				// REGISTER HIM!
+				g_connections[msg.name] = Connection();
+
 				break;
 			}
 		}

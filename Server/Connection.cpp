@@ -2,8 +2,8 @@
 
 
 
-Connection::Connection()
-{
+Connection::Connection() : m_state(ConnectionState::CONNECTING) {
+
 }
 
 
