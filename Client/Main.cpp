@@ -10,7 +10,8 @@ int main() {
 	WSA::init();
 
 	UDPSocket udpSocket("localhost", DEFAULT_PORT);
-	
+	udpSocket.setTimeout(5000);
+
 	RegisterMessage registerMsg;
 	registerMsg.reqNum = 1234;
 	memcpy(registerMsg.name, "SpookySkeleton", 15);
@@ -19,7 +20,7 @@ int main() {
 
 	Packet packet = serializeMessage(registerMsg);
 	udpSocket.send(packet);
-	
+
 	//uint8 testData[3] = { 'a', 'b', 'c' };
 	//Packet testPacket(testData, sizeof(testData)/sizeof(testData[0]));
 	//

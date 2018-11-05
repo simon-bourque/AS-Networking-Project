@@ -92,6 +92,10 @@ void Socket::bind() {
 	}
 }
 
+void Socket::setTimeout(uint32 ms) {
+	setsockopt(_winSocket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(ms), sizeof(uint32));
+}
+
 Socket::~Socket() {
 	if (_addressInfo != nullptr) {
 		freeaddrinfo(_addressInfo);

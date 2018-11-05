@@ -26,6 +26,8 @@ public:
 
 	virtual void send(const Packet& packet) = 0;
 	virtual Packet receive() = 0;
+	
+	void setTimeout(uint32 ms);
 
 	Socket& operator=(Socket&& sock);
 protected:
