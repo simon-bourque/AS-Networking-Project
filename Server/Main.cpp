@@ -33,9 +33,7 @@ int main() {
 		while (listening) {
 			Packet packet = listenerSocket.receive();
 			MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
-			std::cout << "[Receive] " << messageTypeToString(type) << " message" << std::endl;
-			std::cout << packet.getAddress().getSocketAddressAsString() << std::endl;
-			std::cout << packet.getAddress().getSocketPortAsString() << std::endl;
+			std::cout << "[Receive : " << packet.getAddress().getSocketAddressAsString() << "] " << messageTypeToString(type) << " message" << std::endl;
 
 			switch (type) {
 			case MessageType::MSG_REGISTER:
@@ -43,6 +41,18 @@ int main() {
 
 				// REGISTER HIM!
 				g_connections[msg.name] = Connection();
+
+				RegisteredMessage registeredMsg;
+				registeredMsg.reqNum = msg.reqNum;
+				memcpy(registeredMsg.name, msg.name, 128);
+				memcpy(registeredMsg.iPAddress, msg.iPAddress, 128);
+				memcpy(registeredMsg.port, msg.port, 16);
+
+				Packet registeredPacket = serializeMessage(registeredMsg);
+				registeredPacket.setAddress(packet.getAddress());
+
+				listenerSocket.send(registeredPacket);
+				std::cout << "[Send : " << registeredPacket.getAddress().getSocketAddressAsString() << "] " << messageTypeToString(registeredMsg.type) << " message" << std::endl;
 
 				break;
 			}
