@@ -9,8 +9,11 @@ int main() {
 
 	WSA::init();
 
-	UDPSocket udpSocket("localhost", DEFAULT_PORT);
-	udpSocket.setTimeout(5000);
+	// Server ip
+	IPV4Address serverAddress("127.0.0.1", DEFAULT_PORT);
+
+	UDPSocket udpSocket;
+	//udpSocket.setTimeout(5000);
 
 	RegisterMessage registerMsg;
 	registerMsg.reqNum = 1234;
@@ -19,6 +22,8 @@ int main() {
 	registerMsg.port[0] = '\0';
 
 	Packet packet = serializeMessage(registerMsg);
+	packet.setAddress(serverAddress);
+
 	udpSocket.send(packet);
 
 	//uint8 testData[3] = { 'a', 'b', 'c' };

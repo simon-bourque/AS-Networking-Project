@@ -4,7 +4,7 @@
 
 class TCPSocket : public Socket {
 public:
-	TCPSocket(const char* address, const char* port);
+	TCPSocket();
 	TCPSocket(SOCKET socket);
 
 	// Serverside
@@ -12,7 +12,7 @@ public:
 	TCPSocket accept();
 
 	// Clientside
-	void connect();
+	void connect(const IPV4Address& address);
 	void shutdown();
 
 	// Hybrid

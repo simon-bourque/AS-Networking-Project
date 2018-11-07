@@ -1,7 +1,8 @@
 #include "TCPSocket.h"
 
-TCPSocket::TCPSocket(const char* address, const char* port) : Socket(address, port, Socket::SOCKET_TYPE::TCP) {}
-TCPSocket::TCPSocket(SOCKET socket) : Socket(socket, nullptr) {}
+TCPSocket::TCPSocket() : Socket(Socket::SOCKET_TYPE::TCP) {}
+
+TCPSocket::TCPSocket(SOCKET socket) : Socket(socket) {}
 
 void TCPSocket::send(const Packet& packet) {
 	if (::send(_winSocket, reinterpret_cast<const char*>(packet.getMessageData()), packet.getMessageSize(), 0) == SOCKET_ERROR) {
@@ -42,8 +43,8 @@ TCPSocket TCPSocket::accept() {
 	return { clientSocket };
 }
 
-void TCPSocket::connect() {
-	if (::connect(_winSocket, _addressInfo->ai_addr, (int)_addressInfo->ai_addrlen) == SOCKET_ERROR) {
+void TCPSocket::connect(const IPV4Address& address) {
+	if (::connect(_winSocket, address.getSocketAddress(), address.getSocketAddressSize()) == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
 		throw std::runtime_error("Failed to connect to socket: " + WSAErrorCodeToString(errorCode));
 	}

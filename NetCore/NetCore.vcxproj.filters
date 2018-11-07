@@ -36,6 +36,9 @@
     <ClCompile Include="Messages.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="IPV4Address.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ThreadPool.h">
@@ -60,6 +63,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Messages.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="IPV4Address.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

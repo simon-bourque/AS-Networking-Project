@@ -3,6 +3,7 @@
 #include <Winsock2.h>
 #include "Types.h"
 #include "Packet.h"
+#include "IPV4Address.h"
 
 #include <string>
 
@@ -17,12 +18,12 @@ public:
 		UDP
 	};
 
-	Socket(SOCKET winSocket, addrinfo* addressInfo);
-	Socket(const char* address, const char* port, SOCKET_TYPE type);
+	Socket(SOCKET winSocket);
+	Socket(SOCKET_TYPE type);
 	Socket(Socket&& sock);
 	~Socket();
 
-	void bind();
+	void bind(const IPV4Address& address);
 
 	virtual void send(const Packet& packet) = 0;
 	virtual Packet receive() = 0;
@@ -34,6 +35,5 @@ protected:
 	std::string WSAErrorCodeToString(int errorCode);
 
 	SOCKET _winSocket;
-	addrinfo* _addressInfo;
 };
 

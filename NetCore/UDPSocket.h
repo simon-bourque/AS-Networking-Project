@@ -4,7 +4,7 @@
 
 class UDPSocket : public Socket {
 public:
-	UDPSocket(const char* address, const char* port);
+	UDPSocket();
 
 	virtual void send(const Packet& packet) override;
 	virtual Packet receive() override;

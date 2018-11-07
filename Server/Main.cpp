@@ -23,8 +23,10 @@ int main() {
 		CallbackMayRunLong(instance);
 
 		// Create listen socket
-		UDPSocket listenerSocket(nullptr, DEFAULT_PORT);
-		listenerSocket.bind();
+		UDPSocket listenerSocket;
+
+		IPV4Address address("127.0.0.1", DEFAULT_PORT);
+		listenerSocket.bind(address);
 
 		std::cout << "Started listening..." << std::endl;
 		bool listening = true;
@@ -32,6 +34,8 @@ int main() {
 			Packet packet = listenerSocket.receive();
 			MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
 			std::cout << "[Receive] " << messageTypeToString(type) << " message" << std::endl;
+			std::cout << packet.getAddress().getSocketAddressAsString() << std::endl;
+			std::cout << packet.getAddress().getSocketPortAsString() << std::endl;
 
 			switch (type) {
 			case MessageType::MSG_REGISTER:
@@ -45,27 +49,11 @@ int main() {
 		}
 	}, nullptr);
 
-	//ThreadPool::get()->submit([](PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
-	//	UNREFERENCED_PARAMETER(work);
-
-	//	CallbackMayRunLong(instance);
-
-	//	// Create listen socket
-	//	UDPSocket listenerSocket(nullptr, DEFAULT_PORT);
-	//	listenerSocket.bind();
-
-	//	std::cout << "Started listening..." << std::endl;
-	//	bool listening = true;
-	//	while (listening) {
-	//		uint8 buffer[512];
-	//		listenerSocket.receive(buffer, 512);
-	//		std::cout << "received packet" << std::endl;
-	//	}
-	//}, nullptr);
 
 	// Using main thread as listen thread
-	TCPSocket listenerSocket(nullptr, DEFAULT_PORT);
-	listenerSocket.bind();
+	TCPSocket listenerSocket;
+	IPV4Address address("127.0.0.1", DEFAULT_PORT);
+	listenerSocket.bind(address);
 
 	std::cout << "Started listening..." << std::endl;
 	listenerSocket.listen();
