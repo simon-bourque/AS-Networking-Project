@@ -74,15 +74,11 @@ int main() {
 		TCPSocket clientSocket = listenerSocket.accept();
 		std::cout << "Accepted connection..." << std::endl;
 
-		ThreadPool::get()->submit([](PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
-			UNREFERENCED_PARAMETER(work);
+		// Check if connection exists and then set state to connected
+		auto connectionIter = g_connections.find("FUCK YOU");
+		if (connectionIter != g_connections.end()) {
 
-			CallbackMayRunLong(instance);
-
-			// Receive data from connection until client shuts down connection
-			// https://docs.microsoft.com/en-us/windows/desktop/winsock/receiving-and-sending-data-on-the-server
-			
-		}, nullptr);
+		}
 	}
 
 	ThreadPool::get()->clean();

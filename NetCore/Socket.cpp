@@ -31,6 +31,28 @@ std::string Socket::WSAErrorCodeToString(int errorCode) {
 		return "Service provider not initialized.";
 	case WSAESOCKTNOSUPPORT:
 		return "Unsupported socket type.";
+	case WSAEFAULT:
+		return "Receive buffer or from buffer not in user address space.";
+	case WSAEINTR:
+		return "Blocking canceled by WSACancelBlockingCall.";
+	case WSAEISCONN:
+		return "Socket is connected, function not permitted for connected sockets.";
+	case WSAENETRESET:
+		return "Time to live has expired for datagram packet.";
+	case WSAENOTSOCK:
+		return "Socket descriptor is not a socket.";
+	case WSAEOPNOTSUPP:
+		return "Operation not supported for this type of socket.";
+	case WSAESHUTDOWN:
+		return "Socket has been shutdown.";
+	case WSAEWOULDBLOCK:
+		return "Socket would have blocked.";
+	case WSAEMSGSIZE:
+		return "Message was to big to fit in buffer and was truncated.";
+	case WSAETIMEDOUT:
+		return "Socket timed out.";
+	case WSAECONNRESET:
+		return "Virtual circuit was reset by remote side.";
 	default:
 		return "Unknown error.";
 	}

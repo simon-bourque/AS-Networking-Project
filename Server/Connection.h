@@ -1,4 +1,7 @@
 #pragma once
+
+class IPV4Address;
+
 class Connection {
 public:
 	enum class ConnectionState {

@@ -46,7 +46,7 @@ TCPSocket TCPSocket::accept() {
 void TCPSocket::connect(const IPV4Address& address) {
 	if (::connect(_winSocket, address.getSocketAddress(), address.getSocketAddressSize()) == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
-		throw std::runtime_error("Failed to connect to socket: " + WSAErrorCodeToString(errorCode));
+		throw std::runtime_error ("Failed to connect to socket: " + WSAErrorCodeToString(errorCode));
 	}
 }
 
