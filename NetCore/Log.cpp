@@ -2,11 +2,7 @@
 
 #include <iostream>
 
-Log::Log() {}
-
-Log::~Log() {}
-
-void Log::log(LogType logType, MessageType msgType, const IPV4Address& address) {
+void log(LogType logType, MessageType msgType, const IPV4Address& address) {
 	switch (logType) {
 	case LogType::LOG_SEND:
 		std::cout << "[Send : ";
@@ -17,4 +13,12 @@ void Log::log(LogType logType, MessageType msgType, const IPV4Address& address) 
 	}
 	
 	std::cout << address.getSocketAddressAsString() << "] " << messageTypeToString(msgType) << std::endl;
+}
+
+void log(const char* format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	vfprintf(stderr, format, args);
+	va_end(args);
 }

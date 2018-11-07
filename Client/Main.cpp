@@ -1,30 +1,15 @@
 #include <iostream>
 
-#include "UDPSocket.h"
-#include "TCPSocket.h"
+#include "Client.h"
 #include "WSA.h"
-#include "Messages.h"
 
 int main() {
 
 	WSA::init();
 
-	// Server ip
-	IPV4Address serverAddress("127.0.0.1", DEFAULT_PORT);
+	Client client("Oh my, this frozen pizza is so good! Where is it from? It's not delivery, it's Garbagio");
 
-	UDPSocket udpSocket;
-	//udpSocket.setTimeout(5000);
-
-	RegisterMessage registerMsg;
-	registerMsg.reqNum = 1234;
-	memcpy(registerMsg.name, "SpookySkeleton", 15);
-	registerMsg.iPAddress[0] = '\0';
-	registerMsg.port[0] = '\0';
-
-	Packet packet = serializeMessage(registerMsg);
-	packet.setAddress(serverAddress);
-
-	udpSocket.send(packet);
+	client.sendRegister("127.0.0.1", DEFAULT_PORT);
 
 	//uint8 testData[3] = { 'a', 'b', 'c' };
 	//Packet testPacket(testData, sizeof(testData)/sizeof(testData[0]));

@@ -34,7 +34,7 @@ int main() {
 		while (listening) {
 			Packet packet = listenerSocket.receive();
 			MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
-			Log::log(Log::LogType::LOG_RECEIVE, type, packet.getAddress());
+			log(LogType::LOG_RECEIVE, type, packet.getAddress());
 
 			switch (type) {
 			case MessageType::MSG_REGISTER:
@@ -53,7 +53,7 @@ int main() {
 				registeredPacket.setAddress(packet.getAddress());
 
 				listenerSocket.send(registeredPacket);
-				Log::log(Log::LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
+				log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
 
 				break;
 			}

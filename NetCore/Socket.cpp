@@ -68,6 +68,7 @@ Socket::Socket(SOCKET_TYPE type) {
 	if (_winSocket == INVALID_SOCKET) {
 		//freeaddrinfo(_addressInfo);
 		int errorCode = WSAGetLastError();
+		printf("%s", WSAErrorCodeToString(errorCode).c_str());
 		throw std::runtime_error("Failed to create socket: " + WSAErrorCodeToString(errorCode));
 	}
 }
