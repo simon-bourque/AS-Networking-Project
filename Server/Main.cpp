@@ -7,6 +7,7 @@
 #include "WSA.h"
 #include "Connection.h"
 #include "Messages.h"
+#include "Log.h"
 
 std::unordered_map<std::string, Connection> g_connections;
 
@@ -33,7 +34,7 @@ int main() {
 		while (listening) {
 			Packet packet = listenerSocket.receive();
 			MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
-			std::cout << "[Receive : " << packet.getAddress().getSocketAddressAsString() << "] " << messageTypeToString(type) << " message" << std::endl;
+			Log::log(Log::LogType::LOG_RECEIVE, type, packet.getAddress());
 
 			switch (type) {
 			case MessageType::MSG_REGISTER:
@@ -52,7 +53,7 @@ int main() {
 				registeredPacket.setAddress(packet.getAddress());
 
 				listenerSocket.send(registeredPacket);
-				std::cout << "[Send : " << registeredPacket.getAddress().getSocketAddressAsString() << "] " << messageTypeToString(registeredMsg.type) << " message" << std::endl;
+				Log::log(Log::LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
 
 				break;
 			}

@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="IPV4Address.cpp" />
+    <ClCompile Include="Log.cpp" />
     <ClCompile Include="Messages.cpp" />
     <ClCompile Include="Packet.cpp" />
     <ClCompile Include="Socket.cpp" />
@@ -30,6 +31,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IPV4Address.h" />
+    <ClInclude Include="Log.h" />
     <ClInclude Include="Messages.h" />
     <ClInclude Include="Packet.h" />
     <ClInclude Include="Socket.h" />
