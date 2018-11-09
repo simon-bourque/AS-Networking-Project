@@ -15,23 +15,23 @@ Client::Client(std::string uniqueName)
 
 void Client::sendRegister(std::string serverAddress, std::string port)
 {
-	IPV4Address serverIpv4("127.0.0.1", DEFAULT_PORT);
+	_serverIpv4 = IPV4Address("127.0.0.1", DEFAULT_PORT);
 
 	//_udpSocket.setTimeout(5000);
 
 	RegisterMessage registerMsg;
 	registerMsg.reqNum = s_reqNum++;
-	memcpy(registerMsg.name, "SpookySkeleton", 15);
+	memcpy(registerMsg.name, _uniqueName.c_str(), _uniqueName.size()+1);
 	registerMsg.iPAddress[0] = '\0';
 	registerMsg.port[0] = '\0';
 
 	Packet packet = serializeMessage(registerMsg);
-	packet.setAddress(serverIpv4);
+	packet.setAddress(_serverIpv4);
 
 	// Attempting and waiting on server for register response
 	for (uint32 i = 0; i < 5; i++)
 	{
-		log("Attempting registration to the server...\n");
+		log(LogType::LOG_SEND, MessageType::MSG_REGISTER, _serverIpv4);
 
 		_udpSocket.send(packet);
 		Packet registeredPacket = _udpSocket.receive(); // Blocking call with timeout
@@ -46,12 +46,25 @@ void Client::sendRegister(std::string serverAddress, std::string port)
 
 	if (_registered)
 	{
-		log(LogType::LOG_RECEIVE, MessageType::MSG_REGISTERED, serverIpv4);
+		log(LogType::LOG_RECEIVE, MessageType::MSG_REGISTERED, _serverIpv4);
 	}
 	else
 	{
-		log("ERROR: Could not register to the server\n");
+		log("ERROR: Could not register to the server");
 	}
+}
+
+void Client::connect() { _tcpSocket.connect(_serverIpv4); }
+void Client::sendPacket(const Packet& packet) { _tcpSocket.send(packet); }
+void Client::shutdown()
+{ 
+	_tcpSocket.shutdown();
+
+	bool receiving = true;
+	Packet receivedPacket;
+	do {
+		receivedPacket = _tcpSocket.receive();
+	} while (receivedPacket.getMessageSize() > 0);
 }
 
 Client::~Client()
