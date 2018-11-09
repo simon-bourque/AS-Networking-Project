@@ -5,6 +5,7 @@
 
 #include "ThreadPool.h"
 #include "Connection.h"
+#include "IPV4Address.h"
 
 class Server {
 private:
@@ -15,8 +16,10 @@ private:
 
 	bool m_listeningUDP;
 	bool m_listeningTCP;
+
+	IPV4Address m_serverBindAddress;
 public:
-	Server();
+	Server(const IPV4Address& bindAddress);
 	virtual ~Server();
 
 	void startUDPServiceThread();
