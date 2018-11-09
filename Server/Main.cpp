@@ -41,7 +41,7 @@ int main() {
 				RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
 
 				// REGISTER HIM!
-				g_connections[msg.name] = Connection();
+				g_connections[msg.iPAddress] = Connection();
 
 				RegisteredMessage registeredMsg;
 				registeredMsg.reqNum = msg.reqNum;

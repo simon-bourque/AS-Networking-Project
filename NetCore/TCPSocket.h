@@ -18,5 +18,7 @@ public:
 	// Hybrid
 	virtual void send(const Packet& packet) override;
 	virtual Packet receive() override;
+
+	IPV4Address getPeerAddress() const;
 };
 

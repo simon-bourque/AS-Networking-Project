@@ -56,3 +56,11 @@ void TCPSocket::shutdown() {
 		throw std::runtime_error("Failed to shutdown socket: " + WSAErrorCodeToString(errorCode));
 	}
 }
+
+IPV4Address TCPSocket::getPeerAddress() const {
+	sockaddr_in sockAddress;
+	int32 sockAddressSize = sizeof(sockaddr_in);
+	getpeername(_winSocket, reinterpret_cast<sockaddr*>(&sockAddress), &sockAddressSize);
+
+	return IPV4Address(sockAddress);
+}
