@@ -24,28 +24,6 @@ int main() {
 	server.startUDPServiceThread();
 	server.startTCPServiceThread();
 
-	//// Using main thread as listen thread
-	//TCPSocket listenerSocket;
-	//IPV4Address address("127.0.0.1", DEFAULT_PORT);
-	//listenerSocket.bind(address);
-	//
-	//std::cout << "Started listening..." << std::endl;
-	//listenerSocket.listen();
-	//
-	//bool listening = true;
-	//while (listening) {
-	//	TCPSocket clientSocket = listenerSocket.accept();
-	//	std::cout << "Accepted connection..." << std::endl;
-	//
-	//	// Check if connection exists and then set state to connected
-	//	IPV4Address peerAddress = clientSocket.getPeerAddress();
-	//	std::cout << peerAddress.getSocketAddressAsString() << std::endl;
-	//	auto connectionIter = g_connections.find(peerAddress.getSocketAddressAsString());
-	//	if (connectionIter != g_connections.end()) {
-	//
-	//	}
-	//}
-
 	ThreadPool::get()->clean();
 	ThreadPool::destroy();
 	WSA::destroy();

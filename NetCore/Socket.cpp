@@ -53,6 +53,10 @@ std::string Socket::WSAErrorCodeToString(int errorCode) {
 		return "Socket timed out.";
 	case WSAECONNRESET:
 		return "Virtual circuit was reset by remote side.";
+	case WSAENOTCONN:
+		return "Socket is not connected.";
+	case WSAECONNABORTED:
+		return "The virtual circuit was terminated due to a time-out or other failure.";
 	default:
 		return "Unknown error.";
 	}
