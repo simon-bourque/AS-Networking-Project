@@ -1,6 +1,8 @@
 #include <iostream>
 #include <unordered_map>
 
+#include "Server.h"
+
 #include "UDPSocket.h"
 #include "TCPSocket.h"
 #include "ThreadPool.h"
@@ -17,48 +19,50 @@ int main() {
 	ThreadPool::init();
 	WSA::init();
 
-	// Create listen thread
-	ThreadPool::get()->submit([](PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
-		UNREFERENCED_PARAMETER(work);
-
-		CallbackMayRunLong(instance);
-
-		// Create listen socket
-		UDPSocket listenerSocket;
-
-		IPV4Address address("127.0.0.1", DEFAULT_PORT);
-		listenerSocket.bind(address);
-
-		std::cout << "Started listening..." << std::endl;
-		bool listening = true;
-		while (listening) {
-			Packet packet = listenerSocket.receive();
-			MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
-			log(LogType::LOG_RECEIVE, type, packet.getAddress());
-
-			switch (type) {
-			case MessageType::MSG_REGISTER:
-				RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
-
-				// REGISTER HIM!
-				g_connections[msg.iPAddress] = Connection();
-
-				RegisteredMessage registeredMsg;
-				registeredMsg.reqNum = msg.reqNum;
-				memcpy(registeredMsg.name, msg.name, 128);
-				memcpy(registeredMsg.iPAddress, msg.iPAddress, 128);
-				memcpy(registeredMsg.port, msg.port, 16);
-
-				Packet registeredPacket = serializeMessage(registeredMsg);
-				registeredPacket.setAddress(packet.getAddress());
-
-				listenerSocket.send(registeredPacket);
-				log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
-
-				break;
-			}
-		}
-	}, nullptr);
+	Server server;
+	server.startUDPServiceThread();
+	//// Create listen thread
+	//ThreadPool::get()->submit([](PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
+	//	UNREFERENCED_PARAMETER(work);
+	//
+	//	CallbackMayRunLong(instance);
+	//
+	//	// Create listen socket
+	//	UDPSocket listenerSocket;
+	//
+	//	IPV4Address address("127.0.0.1", DEFAULT_PORT);
+	//	listenerSocket.bind(address);
+	//
+	//	std::cout << "Started listening..." << std::endl;
+	//	bool listening = true;
+	//	while (listening) {
+	//		Packet packet = listenerSocket.receive();
+	//		MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
+	//		log(LogType::LOG_RECEIVE, type, packet.getAddress());
+	//
+	//		switch (type) {
+	//		case MessageType::MSG_REGISTER:
+	//			RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
+	//
+	//			// REGISTER HIM!
+	//			g_connections[packet.getAddress().getSocketAddressAsString()] = Connection();
+	//
+	//			RegisteredMessage registeredMsg;
+	//			registeredMsg.reqNum = msg.reqNum;
+	//			memcpy(registeredMsg.name, msg.name, 128);
+	//			memcpy(registeredMsg.iPAddress, msg.iPAddress, 128);
+	//			memcpy(registeredMsg.port, msg.port, 16);
+	//
+	//			Packet registeredPacket = serializeMessage(registeredMsg);
+	//			registeredPacket.setAddress(packet.getAddress());
+	//
+	//			listenerSocket.send(registeredPacket);
+	//			log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
+	//
+	//			break;
+	//		}
+	//	}
+	//}, nullptr);
 
 
 	// Using main thread as listen thread
@@ -75,7 +79,9 @@ int main() {
 		std::cout << "Accepted connection..." << std::endl;
 
 		// Check if connection exists and then set state to connected
-		auto connectionIter = g_connections.find("FUCK YOU");
+		IPV4Address peerAddress = clientSocket.getPeerAddress();
+		std::cout << peerAddress.getSocketAddressAsString() << std::endl;
+		auto connectionIter = g_connections.find(peerAddress.getSocketAddressAsString());
 		if (connectionIter != g_connections.end()) {
 
 		}

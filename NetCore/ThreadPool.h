@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Winsock2.h>
 #include <Windows.h>
 
 typedef VOID (CALLBACK *ThreadExecutionFunc)(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
