@@ -7,7 +7,7 @@ int main() {
 
 	WSA::init();
 
-	uint8 testData[3] = { 'a', 'b', 'c' };
+	uint8 testData[8] = { 'g','a','r','b','a','g','i','o' };
 	Packet testPacket(testData, sizeof(testData)/sizeof(testData[0]));
 
 	Client client("Oh my, this frozen pizza is so good! Where is it from? It's not delivery, it's Garbagio");
@@ -15,7 +15,7 @@ int main() {
 	client.sendRegister("127.0.0.1", DEFAULT_PORT);
 	client.connect();
 	client.sendPacket(testPacket);
-	client.shutdown();
+	//client.shutdown();
 
 	system("pause");
 

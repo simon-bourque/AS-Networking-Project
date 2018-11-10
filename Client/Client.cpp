@@ -15,7 +15,7 @@ Client::Client(std::string uniqueName)
 
 void Client::sendRegister(std::string serverAddress, std::string port)
 {
-	_serverIpv4 = IPV4Address("127.0.0.1", DEFAULT_PORT);
+	_serverIpv4 = IPV4Address(serverAddress, DEFAULT_PORT);
 
 	//_udpSocket.setTimeout(5000);
 
