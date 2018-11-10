@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <ws2tcpip.h>
 
-std::string Socket::WSAErrorCodeToString(int errorCode) {
+std::string Socket::WSAErrorCodeToString(int32 errorCode) {
 	switch (errorCode) {
 	case WSANOTINITIALISED:
 		return "WSA not initialized.";
@@ -104,6 +104,7 @@ Socket::Socket(Socket&& sock) : _winSocket(sock._winSocket) {
 }
 
 Socket& Socket::operator=(Socket&& sock) {
+	closesocket(_winSocket);
 	_winSocket = sock._winSocket;
 	sock._winSocket = INVALID_SOCKET;
 	return *this;

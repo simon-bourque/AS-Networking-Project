@@ -4,6 +4,8 @@ TCPSocket::TCPSocket() : Socket(Socket::SOCKET_TYPE::TCP) {}
 
 TCPSocket::TCPSocket(SOCKET socket) : Socket(socket) {}
 
+TCPSocket::TCPSocket(TCPSocket&& socket) : Socket(std::move(socket)) {}
+
 void TCPSocket::send(const Packet& packet) {
 	if (::send(_winSocket, reinterpret_cast<const char*>(packet.getMessageData()), packet.getMessageSize(), 0) == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
@@ -13,18 +15,21 @@ void TCPSocket::send(const Packet& packet) {
 }
 
 Packet TCPSocket::receive() {
-	int errorCode;
 	uint8* buffer = new uint8[Packet::PACKET_SIZE];
 
-	errorCode = recv(_winSocket, reinterpret_cast<char*>(buffer), Packet::PACKET_SIZE, 0);
-	if (errorCode > 0)
-		throw std::runtime_error("Received bytes:" + errorCode);
-	else if (errorCode == 0)
+	int32 numBytesreceived = recv(_winSocket, reinterpret_cast<char*>(buffer), Packet::PACKET_SIZE, 0);
+	if (numBytesreceived == 0) {
 		throw std::runtime_error("Connection was closed");
-	else
+	}
+	else if (numBytesreceived == SOCKET_ERROR) {
+		int32 errorCode = WSAGetLastError();
 		throw std::runtime_error("Received has failed: " + WSAErrorCodeToString(errorCode));
+	}
 
-	return Packet(buffer, Packet::PACKET_SIZE);
+	Packet packet(buffer, Packet::PACKET_SIZE);
+
+	delete[] buffer;
+	return packet;
 }
 
 void TCPSocket::listen() {

@@ -1,8 +1,11 @@
 #pragma once
 
-class IPV4Address;
+#include "ThreadPool.h"
+
+class TCPSocket;
 
 class Connection {
+	friend void tcpConnectionExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 public:
 	enum class ConnectionState {
 		CONNECTING,
@@ -10,8 +13,12 @@ public:
 	};
 private:
 	ConnectionState m_state;
+
+	TCPSocket* m_tcpSocket;
 public:
 	Connection();
 	virtual ~Connection();
+
+	void connect(TCPSocket&& socket);
 };
 

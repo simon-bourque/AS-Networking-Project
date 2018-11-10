@@ -36,7 +36,7 @@ void udpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK wo
 
 	listenerSocket.bind(server->m_serverBindAddress);
 
-	log("[INFO] Started listening on UDP port %s", DEFAULT_PORT);
+	log("[INFO] Started listening on UDP port %s", server->m_serverBindAddress.getSocketPortAsString().c_str());
 
 	server->m_listeningUDP = true;
 	while (server->m_listeningUDP) {
@@ -78,7 +78,7 @@ void tcpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK wo
 	listenerSocket.bind(server->m_serverBindAddress);
 	listenerSocket.listen();
 
-	log("[INFO] Started listening on TCP port %s", DEFAULT_PORT);
+	log("[INFO] Started listening on TCP port %s", server->m_serverBindAddress.getSocketPortAsString().c_str());
 
 	server->m_listeningTCP = true;
 	while (server->m_listeningTCP) {
@@ -90,7 +90,7 @@ void tcpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK wo
 		std::cout << peerAddress.getSocketAddressAsString() << std::endl;
 		auto connectionIter = server->m_connections.find(peerAddress.getSocketAddressAsString());
 		if (connectionIter != server->m_connections.end()) {
-
+			connectionIter->second.connect(std::move(clientSocket));
 		}
 	}
 }

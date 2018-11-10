@@ -1,26 +1,24 @@
 #include <iostream>
-#include <unordered_map>
 
 #include "Server.h"
 #include "IPV4Address.h"
 
-#include "UDPSocket.h"
-#include "TCPSocket.h"
+#include "Socket.h"
 #include "ThreadPool.h"
 #include "WSA.h"
-#include "Connection.h"
-#include "Messages.h"
 #include "Log.h"
 
-std::unordered_map<std::string, Connection> g_connections;
-
 int main() {
-	std::cout << "Initializing server..." << std::endl;
+	std::cout << "Local ip: ";
+	std::string ip;
+	std::cin >> ip;
+
+	log("[INFO] Initializing server...");
 
 	ThreadPool::init();
 	WSA::init();
 
-	Server server(IPV4Address("127.0.0.1", DEFAULT_PORT));
+	Server server(IPV4Address(ip, DEFAULT_PORT));
 	server.startUDPServiceThread();
 	server.startTCPServiceThread();
 

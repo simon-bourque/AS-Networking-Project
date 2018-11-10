@@ -6,6 +6,7 @@ class TCPSocket : public Socket {
 public:
 	TCPSocket();
 	TCPSocket(SOCKET socket);
+	TCPSocket(TCPSocket&& socket);
 
 	// Serverside
 	void listen();
