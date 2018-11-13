@@ -40,6 +40,10 @@ void udpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK wo
 
 	server->m_listeningUDP = true;
 	while (server->m_listeningUDP) {
+		//if (!listenerSocket.canReceive()) {
+		//	continue;
+		//}
+
 		Packet packet = listenerSocket.receive();
 		MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
 		log(LogType::LOG_RECEIVE, type, packet.getAddress());

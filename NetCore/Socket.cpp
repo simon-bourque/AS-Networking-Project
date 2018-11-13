@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <ws2tcpip.h>
 
-std::string Socket::WSAErrorCodeToString(int32 errorCode) {
+std::string Socket::WSAErrorCodeToString(int32 errorCode) const {
 	switch (errorCode) {
 	case WSANOTINITIALISED:
 		return "WSA not initialized.";
@@ -65,7 +65,7 @@ std::string Socket::WSAErrorCodeToString(int32 errorCode) {
 Socket::Socket(SOCKET winSocket)
 	: _winSocket(winSocket) {}
 
-Socket::Socket(SOCKET_TYPE type) {
+Socket::Socket(SOCKET_TYPE type, bool blocking) {
 	//addrinfo hints;
 	//ZeroMemory(&hints, sizeof(hints));
 	//hints.ai_family = AF_INET;
@@ -92,10 +92,21 @@ Socket::Socket(SOCKET_TYPE type) {
 
 	_winSocket = socket(AF_INET, sockType, protocol);
 	if (_winSocket == INVALID_SOCKET) {
-		//freeaddrinfo(_addressInfo);
 		int errorCode = WSAGetLastError();
 		printf("%s", WSAErrorCodeToString(errorCode).c_str());
 		throw std::runtime_error("Failed to create socket: " + WSAErrorCodeToString(errorCode));
+	}
+
+	if (!blocking) {
+		uint64 arg = 1;
+		int32 status = ioctlsocket(_winSocket, FIONBIO, (u_long*)&arg);
+		if (status == SOCKET_ERROR) {
+			closesocket(_winSocket);
+			_winSocket = INVALID_SOCKET;
+			int errorCode = WSAGetLastError();
+			printf("%s", WSAErrorCodeToString(errorCode).c_str());
+			throw std::runtime_error("Failed to create socket: " + WSAErrorCodeToString(errorCode));
+		}
 	}
 }
 
@@ -124,4 +135,40 @@ void Socket::setTimeout(uint32 ms) {
 
 Socket::~Socket() {
 	closesocket(_winSocket);
+}
+
+bool Socket::canReceive() const {
+	TIMEVAL timeVal;
+	ZeroMemory(&timeVal, sizeof(TIMEVAL));
+
+	fd_set set;
+	FD_ZERO(&set);
+	FD_SET(_winSocket, &set);
+
+	int32 result = select(0, &set, NULL, NULL, &timeVal);
+	if (result == SOCKET_ERROR) {
+		int errorCode = WSAGetLastError();
+		printf("%s", WSAErrorCodeToString(errorCode).c_str());
+		throw std::runtime_error("Failed to check socket receive status: " + WSAErrorCodeToString(errorCode));
+	}
+
+	return (result > 0) && FD_ISSET(_winSocket, &set);
+}
+
+bool Socket::canSend() const {
+	TIMEVAL timeVal;
+	ZeroMemory(&timeVal, sizeof(TIMEVAL));
+
+	fd_set set;
+	FD_ZERO(&set);
+	FD_SET(_winSocket, &set);
+
+	int32 result = select(0, NULL, &set, NULL, &timeVal);
+	if (result == SOCKET_ERROR) {
+		int errorCode = WSAGetLastError();
+		printf("%s", WSAErrorCodeToString(errorCode).c_str());
+		throw std::runtime_error("Failed to check socket send status: " + WSAErrorCodeToString(errorCode));
+	}
+
+	return (result > 0) && FD_ISSET(_winSocket, &set);
 }

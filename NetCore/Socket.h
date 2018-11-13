@@ -9,8 +9,7 @@
 
 static constexpr char DEFAULT_PORT[] = "18081";
 
-class Socket
-{
+class Socket {
 public:
 	enum class SOCKET_TYPE
 	{
@@ -19,7 +18,7 @@ public:
 	};
 
 	Socket(SOCKET winSocket);
-	Socket(SOCKET_TYPE type);
+	Socket(SOCKET_TYPE type, bool blocking = true);
 	Socket(Socket&& sock);
 	~Socket();
 
@@ -30,9 +29,12 @@ public:
 	
 	void setTimeout(uint32 ms);
 
+	bool canReceive() const;
+	bool canSend() const;
+
 	Socket& operator=(Socket&& sock);
 protected:
-	std::string WSAErrorCodeToString(int errorCode);
+	std::string WSAErrorCodeToString(int errorCode) const;
 
 	SOCKET _winSocket;
 };
