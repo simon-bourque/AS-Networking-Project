@@ -65,7 +65,7 @@ std::string Socket::WSAErrorCodeToString(int32 errorCode) const {
 Socket::Socket(SOCKET winSocket)
 	: _winSocket(winSocket) {}
 
-Socket::Socket(SOCKET_TYPE type, bool blocking) {
+Socket::Socket(SOCKET_TYPE type) {
 	//addrinfo hints;
 	//ZeroMemory(&hints, sizeof(hints));
 	//hints.ai_family = AF_INET;
@@ -96,18 +96,6 @@ Socket::Socket(SOCKET_TYPE type, bool blocking) {
 		printf("%s", WSAErrorCodeToString(errorCode).c_str());
 		throw std::runtime_error("Failed to create socket: " + WSAErrorCodeToString(errorCode));
 	}
-
-	if (!blocking) {
-		uint64 arg = 1;
-		int32 status = ioctlsocket(_winSocket, FIONBIO, (u_long*)&arg);
-		if (status == SOCKET_ERROR) {
-			closesocket(_winSocket);
-			_winSocket = INVALID_SOCKET;
-			int errorCode = WSAGetLastError();
-			printf("%s", WSAErrorCodeToString(errorCode).c_str());
-			throw std::runtime_error("Failed to create socket: " + WSAErrorCodeToString(errorCode));
-		}
-	}
 }
 
 Socket::Socket(Socket&& sock) : _winSocket(sock._winSocket) {
@@ -131,6 +119,16 @@ void Socket::bind(const IPV4Address& address) {
 
 void Socket::setTimeout(uint32 ms) {
 	setsockopt(_winSocket, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(ms), sizeof(uint32));
+}
+
+void Socket::setBlocking(bool blocking) {
+	uint64 arg = (blocking) ? 0 : 1;
+	int32 status = ioctlsocket(_winSocket, FIONBIO, (u_long*)&arg);
+	if (status == SOCKET_ERROR) {
+		int errorCode = WSAGetLastError();
+		printf("%s", WSAErrorCodeToString(errorCode).c_str());
+		throw std::runtime_error("Failed to set blocking for socket: " + WSAErrorCodeToString(errorCode));
+	}
 }
 
 Socket::~Socket() {

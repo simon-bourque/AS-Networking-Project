@@ -4,7 +4,7 @@
 
 class UDPSocket : public Socket {
 public:
-	UDPSocket(bool blocking = true);
+	UDPSocket();
 
 	virtual void send(const Packet& packet) override;
 	virtual Packet receive() override;

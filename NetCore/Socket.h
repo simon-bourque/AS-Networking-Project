@@ -18,7 +18,7 @@ public:
 	};
 
 	Socket(SOCKET winSocket);
-	Socket(SOCKET_TYPE type, bool blocking = true);
+	Socket(SOCKET_TYPE type);
 	Socket(Socket&& sock);
 	~Socket();
 
@@ -28,6 +28,7 @@ public:
 	virtual Packet receive() = 0;
 	
 	void setTimeout(uint32 ms);
+	void setBlocking(bool blocking);
 
 	bool canReceive() const;
 	bool canSend() const;

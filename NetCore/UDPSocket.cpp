@@ -3,7 +3,7 @@
 #include <iostream>
 #include <Ws2tcpip.h>
 
-UDPSocket::UDPSocket(bool blocking) : Socket(Socket::SOCKET_TYPE::UDP, blocking) {}
+UDPSocket::UDPSocket() : Socket(Socket::SOCKET_TYPE::UDP) {}
 
 void UDPSocket::send(const Packet& packet) {
 	const sockaddr* sockAddr = packet.getAddress().getSocketAddress();
