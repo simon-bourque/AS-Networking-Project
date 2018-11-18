@@ -26,7 +26,7 @@ Packet TCPSocket::receive() {
 		throw std::runtime_error("Received has failed: " + WSAErrorCodeToString(errorCode));
 	}
 
-	Packet packet(buffer, Packet::PACKET_SIZE);
+	Packet packet(buffer, numBytesreceived);
 
 	delete[] buffer;
 	return packet;

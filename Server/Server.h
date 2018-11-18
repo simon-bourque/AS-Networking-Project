@@ -24,5 +24,7 @@ public:
 
 	void startUDPServiceThread();
 	void startTCPServiceThread();
+
+	void shutdown();
 };
 

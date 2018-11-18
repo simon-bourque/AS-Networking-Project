@@ -15,6 +15,8 @@ private:
 	ConnectionState m_state;
 
 	TCPSocket* m_tcpSocket;
+
+	bool m_listening;
 public:
 	Connection();
 	virtual ~Connection();

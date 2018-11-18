@@ -5,6 +5,9 @@
 #include "TCPSocket.h"
 
 #include <iostream>
+#include <mutex>
+
+std::once_flag flag;
 
 void udpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 void tcpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
@@ -16,6 +19,13 @@ Server::Server(const IPV4Address& bindAddress) :
 {}
 
 Server::~Server() {}
+
+void Server::shutdown() {
+	std::call_once(flag, [this]() {
+		m_listeningUDP = false;
+		m_listeningTCP = false;
+	});
+}
 
 void Server::startUDPServiceThread() {
 	ThreadPool::get()->submit(udpServiceExec, this);

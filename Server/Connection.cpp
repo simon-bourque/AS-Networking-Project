@@ -8,6 +8,7 @@ void tcpConnectionExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 Connection::Connection() :
 	m_state(ConnectionState::CONNECTING)
 	, m_tcpSocket(nullptr)
+	, m_listening(false)
 {}
 
 
@@ -25,9 +26,9 @@ void Connection::connect(TCPSocket&& socket) {
 void tcpConnectionExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
 	Connection* connection = reinterpret_cast<Connection*>(parameter);
 	
-	bool listening = true;
-	while (listening) {
-		connection->m_tcpSocket->receive();
-		log("I GOT SHIT BOOOOI");
+	connection->m_listening = true;
+	while (connection->m_listening) {
+		Packet packet = connection->m_tcpSocket->receive();
+		log(std::string((const char*)packet.getMessageData(), packet.getMessageSize()).c_str());
 	}
 }

@@ -1,13 +1,12 @@
 #include "Log.h"
 
 #include <iostream>
-
 #include <mutex>
 
 static std::mutex g_lock;
 
 void log(LogType logType, MessageType msgType, const IPV4Address& address) {
-	g_lock.lock();
+	std::lock_guard<std::mutex> lock(g_lock);
 	
 	switch (logType) {
 	case LogType::LOG_SEND:
@@ -19,13 +18,10 @@ void log(LogType logType, MessageType msgType, const IPV4Address& address) {
 	}
 	
 	std::cout << address.getSocketAddressAsString() << "] " << messageTypeToString(msgType) << std::endl;
-
-	g_lock.unlock();
 }
 
-void log(const char* format, ...)
-{
-	g_lock.lock();
+void log(const char* format, ...) {
+	std::lock_guard<std::mutex> lock(g_lock);
 
 	va_list args;
 	va_start(args, format);
@@ -39,6 +35,4 @@ void log(const char* format, ...)
 
 	delete[] buffer;
 	va_end(args);
-
-	g_lock.unlock();
 }
