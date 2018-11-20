@@ -10,18 +10,16 @@
 #include "Connection.h"
 #include "IPV4Address.h"
 #include "UDPSocket.h"
+#include "TCPSocket.h"
 #include "OverlappedBufferPool.h"
 
 class Server {
 private:
-	friend void udpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 	friend void tcpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 	
 	friend void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
+	friend void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 	friend void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
-
-	friend void udpServiceExec2(PTP_CALLBACK_INSTANCE instance, PVOID context,
-		PVOID overlapped, ULONG ioResult, ULONG_PTR numberOfBytesTransferred, PTP_IO io);
 
 	std::unordered_map<std::string, Connection> m_connections;
 
@@ -32,10 +30,14 @@ private:
 
 	IPV4Address m_serverBindAddress;
 
-	OverlappedBufferHandle m_serverUDPBuffer;
+	OverlappedBufferHandle m_serverUDPBufferHandle;
+	OverlappedBufferHandle m_serverTCPBufferHandle;
+
 	UDPSocket m_serverUDPSocket;
+	TCPSocket m_serverTCPSocket;
 
 	HANDLE m_udpServiceIOPort;
+	HANDLE m_tcpServiceIOPort;
 public:
 	Server(const IPV4Address& bindAddress);
 	virtual ~Server();

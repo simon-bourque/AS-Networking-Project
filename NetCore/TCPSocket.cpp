@@ -2,7 +2,9 @@
 
 #include "OverlappedBuffer.h"
 
-TCPSocket::TCPSocket() : Socket(Socket::SOCKET_TYPE::TCP) {}
+#include "Mswsock.h"
+
+TCPSocket::TCPSocket(bool overlapped) : Socket(Socket::SOCKET_TYPE::TCP, overlapped) {}
 
 TCPSocket::TCPSocket(SOCKET socket) : Socket(socket) {}
 
@@ -50,6 +52,27 @@ TCPSocket TCPSocket::accept() {
 	return { clientSocket };
 }
 
+TCPSocket TCPSocket::acceptOverlapped(OverlappedBufferHandle overlappedBufferHandle) {
+	TCPSocket clientSocket;
+	OverlappedBuffer& overlappedBuffer = OverlappedBufferPool::get()->getOverlappedBuffer(overlappedBufferHandle);
+
+	uint8* receiveData = new uint8[Packet::PACKET_SIZE];
+	DWORD bytesReceived = 0;
+	AcceptEx(
+		_winSocket,
+		clientSocket._winSocket,
+		receiveData,
+		0,
+		128,
+		128,
+		&bytesReceived,
+		&overlappedBuffer.m_overlapped
+	);
+	delete[] receiveData;
+
+	return clientSocket;
+}
+
 void TCPSocket::connect(const IPV4Address& address) {
 	if (::connect(_winSocket, address.getSocketAddress(), address.getSocketAddressSize()) == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
@@ -72,6 +95,16 @@ IPV4Address TCPSocket::getPeerAddress() const {
 	return IPV4Address(sockAddress);
 }
 
-void TCPSocket::receiveOverlapped(OverlappedBufferHandle overlappedBuffer) {
+void TCPSocket::receiveOverlapped(OverlappedBufferHandle overlappedBufferHandle) {
+	OverlappedBuffer& overlappedBuffer = OverlappedBufferPool::get()->getOverlappedBuffer(overlappedBufferHandle);
 
+	WSARecv(
+		_winSocket,
+		&overlappedBuffer.m_buffer,
+		1,
+		NULL,
+		reinterpret_cast<LPDWORD>(&overlappedBuffer.m_flags),
+		&overlappedBuffer.m_overlapped,
+		NULL
+	);
 }
