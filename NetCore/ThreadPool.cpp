@@ -1,6 +1,8 @@
 #include "ThreadPool.h"
 
 #include "Types.h"
+#include <iostream>
+#include <string>
 
 ThreadPool* ThreadPool::s_instance = nullptr;
 

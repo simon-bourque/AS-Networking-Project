@@ -2,6 +2,8 @@
 
 #include "Socket.h"
 
+class OverlappedBuffer;
+
 class TCPSocket : public Socket {
 public:
 	TCPSocket();
@@ -19,6 +21,8 @@ public:
 	// Hybrid
 	virtual void send(const Packet& packet) override;
 	virtual Packet receive() override;
+
+	virtual void receiveOverlapped(OverlappedBufferHandle overlappedBuffer) override;
 
 	IPV4Address getPeerAddress() const;
 };

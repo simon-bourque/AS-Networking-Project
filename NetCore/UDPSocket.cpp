@@ -3,7 +3,9 @@
 #include <iostream>
 #include <Ws2tcpip.h>
 
-UDPSocket::UDPSocket() : Socket(Socket::SOCKET_TYPE::UDP) {}
+#include "OverlappedBuffer.h"
+
+UDPSocket::UDPSocket(bool overlapped) : Socket(Socket::SOCKET_TYPE::UDP, overlapped) {}
 
 void UDPSocket::send(const Packet& packet) {
 	const sockaddr* sockAddr = packet.getAddress().getSocketAddress();
@@ -34,4 +36,22 @@ Packet UDPSocket::receive() {
 	delete[] buffer;
 
 	return packet;
+}
+
+
+
+void UDPSocket::receiveOverlapped(OverlappedBufferHandle overlappedBufferHandle) {
+	OverlappedBuffer& overlappedBuffer = OverlappedBufferPool::get()->getOverlappedBuffer(overlappedBufferHandle);
+
+	WSARecvFrom(
+		_winSocket,
+		&overlappedBuffer.m_buffer,
+		1,
+		NULL,
+		reinterpret_cast<LPDWORD>(&overlappedBuffer.m_flags),
+		reinterpret_cast<sockaddr*>(&overlappedBuffer.m_senderAddress),
+		&overlappedBuffer.m_senderAddressSize,
+		&overlappedBuffer.m_overlapped,
+		NULL
+	);
 }

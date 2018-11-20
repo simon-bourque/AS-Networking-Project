@@ -1,5 +1,7 @@
 #include "TCPSocket.h"
 
+#include "OverlappedBuffer.h"
+
 TCPSocket::TCPSocket() : Socket(Socket::SOCKET_TYPE::TCP) {}
 
 TCPSocket::TCPSocket(SOCKET socket) : Socket(socket) {}
@@ -68,4 +70,8 @@ IPV4Address TCPSocket::getPeerAddress() const {
 	getpeername(_winSocket, reinterpret_cast<sockaddr*>(&sockAddress), &sockAddressSize);
 
 	return IPV4Address(sockAddress);
+}
+
+void TCPSocket::receiveOverlapped(OverlappedBufferHandle overlappedBuffer) {
+
 }

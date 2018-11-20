@@ -65,7 +65,7 @@ std::string Socket::WSAErrorCodeToString(int32 errorCode) const {
 Socket::Socket(SOCKET winSocket)
 	: _winSocket(winSocket) {}
 
-Socket::Socket(SOCKET_TYPE type) {
+Socket::Socket(SOCKET_TYPE type, bool overlapped) {
 	//addrinfo hints;
 	//ZeroMemory(&hints, sizeof(hints));
 	//hints.ai_family = AF_INET;
@@ -90,7 +90,8 @@ Socket::Socket(SOCKET_TYPE type) {
 	//	throw std::runtime_error("Help... I've fallen... and I can't get up!");
 	//}
 
-	_winSocket = socket(AF_INET, sockType, protocol);
+	//_winSocket = socket(AF_INET, sockType, protocol);
+	_winSocket = WSASocketW(AF_INET, sockType, protocol, nullptr, 0, (overlapped) ? WSA_FLAG_OVERLAPPED : 0);
 	if (_winSocket == INVALID_SOCKET) {
 		int errorCode = WSAGetLastError();
 		printf("%s", WSAErrorCodeToString(errorCode).c_str());
