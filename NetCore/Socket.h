@@ -28,7 +28,7 @@ public:
 	virtual void send(const Packet& packet) = 0;
 	virtual Packet receive() = 0;
 
-	virtual void receiveOverlapped(OverlappedBufferHandle overlappedBuffer) = 0;
+	virtual void receiveOverlapped(OverlappedBufferHandle overlappedBufferHandle) = 0;
 	
 	void setTimeout(uint32 ms);
 	void setBlocking(bool blocking);

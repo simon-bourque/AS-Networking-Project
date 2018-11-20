@@ -10,6 +10,8 @@
 std::once_flag flag;
 
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
+void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
+
 void tcpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 
 void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
@@ -19,9 +21,11 @@ Server::Server(const IPV4Address& bindAddress) :
 	, m_listeningTCP(false)
 	, m_serverBindAddress(bindAddress)
 	, m_serverUDPSocket(true)
+	, m_serverTCPSocket(true)
 	, m_running(true)
 {
 	m_udpServiceIOPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	m_tcpServiceIOPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 }
 
 Server::~Server() {}
@@ -35,16 +39,24 @@ void Server::shutdown() {
 }
 
 void Server::startUDPServiceThread() {
-	m_serverUDPBuffer = OverlappedBufferPool::get()->requestOverlappedBuffer(nullptr);
+	m_serverUDPBufferHandle = OverlappedBufferPool::get()->requestOverlappedBuffer(nullptr);
 	m_serverUDPSocket.bind(m_serverBindAddress);
 	
 	CreateIoCompletionPort(m_serverUDPSocket.getWinSockHandle(), m_udpServiceIOPort, 1, 0);
 
-	m_serverUDPSocket.receiveOverlapped(m_serverUDPBuffer);
+	m_serverUDPSocket.receiveOverlapped(m_serverUDPBufferHandle);
 	ThreadPool::get()->submit(udpServiceRoutine, this);
 }
 
 void Server::startTCPServiceThread() {
+	//m_serverTCPBufferHandle = OverlappedBufferPool::get()->requestOverlappedBuffer(nullptr);
+	//m_serverTCPSocket.bind(m_serverBindAddress);
+	//m_serverTCPSocket.listen();
+	//
+	//CreateIoCompletionPort(m_serverTCPSocket.getWinSockHandle(), m_tcpServiceIOPort, 1, 0);
+	
+	//ThreadPool::get()->submit(tcpServiceRoutine, this);
+	
 	ThreadPool::get()->submit(tcpServiceExec, this);
 }
 
@@ -90,7 +102,7 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 		GetQueuedCompletionStatus(server->m_udpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
 		
 		// Convert OverlappedBuffer to Packet for ease of use
-		OverlappedBuffer& buffer = OverlappedBufferPool::get()->getOverlappedBuffer(server->m_serverUDPBuffer);
+		OverlappedBuffer& buffer = OverlappedBufferPool::get()->getOverlappedBuffer(server->m_serverUDPBufferHandle);
 		Packet packet(buffer.getData(), numBytes);
 		packet.setAddress(buffer.getAddress());
 
@@ -119,7 +131,25 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 			break;
 		}
 
-		server->m_serverUDPSocket.receiveOverlapped(server->m_serverUDPBuffer);
+		server->m_serverUDPSocket.receiveOverlapped(server->m_serverUDPBufferHandle);
+	}
+}
+
+void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
+	UNREFERENCED_PARAMETER(work);
+	CallbackMayRunLong(instance);
+
+	Server* server = reinterpret_cast<Server*>(parameter);
+
+	DWORD numBytes = 0;
+	ULONG_PTR key = 0;
+	LPOVERLAPPED overlapped = nullptr;
+
+	log("[INFO] Started listening on TCP port %s", server->m_serverBindAddress.getSocketPortAsString().c_str());
+	while (server->m_running) {
+		GetQueuedCompletionStatus(server->m_tcpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
+
+		std::cout << "PING" << std::endl;
 	}
 }
 
