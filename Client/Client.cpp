@@ -134,12 +134,40 @@ void Client::sendDeregister()
 {
 	if (_registered)
 	{
-		// Send deregister
-		// Check for receive of DEREG_CONF or DEREG_DENIED
+		DeregisterMessage deregMsg;
+		deregMsg.reqNum = s_reqNum++;
+		memcpy(deregMsg.name, _uniqueName.c_str(), _uniqueName.size() + 1);
+		deregMsg.iPAddress[0] = '\0';
+
+		Packet packet = serializeMessage(deregMsg);
+		packet.setAddress(_serverIpv4);
+
+		// Attempting and waiting on server for register response
+		for (uint32 i = 0; i < 5; i++)
+		{
+			log(LogType::LOG_SEND, MessageType::MSG_DEREGISTER, _serverIpv4);
+
+			_udpSocket.send(packet);
+			Packet deregPacket = _udpSocket.receive();
+
+			if (deregPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_DEREG_CONF))
+			{
+				// We received a confirmation for the deregister everything is gucci
+				log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_CONF, _serverIpv4);
+				_registered = false;
+				break;
+			}
+			else if (deregPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_DEREG_DENIED))
+			{
+				// Oof the deregister was denied. Try again?
+				log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_DENIED, _serverIpv4);
+			}
+		}
 	}
 	else
 	{
 		// Not registered
+		log("ERROR: You are not registered");
 	}
 
 	// Go back to main menu

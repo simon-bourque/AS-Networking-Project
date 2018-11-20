@@ -118,9 +118,9 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 
 			RegisteredMessage registeredMsg;
 			registeredMsg.reqNum = msg.reqNum;
-			memcpy(registeredMsg.name, msg.name, 128);
-			memcpy(registeredMsg.iPAddress, msg.iPAddress, 128);
-			memcpy(registeredMsg.port, msg.port, 16);
+			memcpy(registeredMsg.name, msg.name, NAMELENGTH);
+			memcpy(registeredMsg.iPAddress, msg.iPAddress, IPLENGTH);
+			memcpy(registeredMsg.port, msg.port, PORTLENGTH);
 
 			Packet registeredPacket = serializeMessage(registeredMsg);
 			registeredPacket.setAddress(packet.getAddress());

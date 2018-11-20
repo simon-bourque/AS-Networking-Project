@@ -5,6 +5,13 @@
 #include <string>
 #include <cassert>
 
+// Field lengths
+static constexpr uint32 NAMELENGTH = 128;
+static constexpr uint32 IPLENGTH = 128;
+static constexpr uint32 REASONLENGTH = 128;
+static constexpr uint32 DESCLENGTH = 128;
+static constexpr uint32 PORTLENGTH = 16;
+
 enum class MessageType : uint8 {
 	MSG_REGISTER,
 	MSG_REGISTERED,
@@ -47,30 +54,30 @@ T deserializeMessage(const Packet& packet) {
 struct RegisterMessage {
 	const MessageType type = MessageType::MSG_REGISTER;
 	uint32 reqNum;
-	char name[128];
-	char iPAddress[128];
-	char port[16];
+	char name[NAMELENGTH];
+	char iPAddress[IPLENGTH];
+	char port[PORTLENGTH];
 };
 
 struct RegisteredMessage {
 	const MessageType type = MessageType::MSG_REGISTERED;
 	uint32 reqNum;
-	char name[128];
-	char iPAddress[128];
-	char port[16];
+	char name[NAMELENGTH];
+	char iPAddress[IPLENGTH];
+	char port[PORTLENGTH];
 };
 
 struct UnregisteredMessage {
 	const MessageType type = MessageType::MSG_UNREGISTERED;
 	uint32 reqNum;
-	char reason[128];
+	char reason[REASONLENGTH];
 };
 
 struct DeregisterMessage {
 	const MessageType type = MessageType::MSG_DEREGISTER;
 	uint32 reqNum;
-	char name[128];
-	char iPAddress[128];
+	char name[NAMELENGTH];
+	char iPAddress[IPLENGTH];
 };
 
 struct DeregConfMessage {
@@ -81,15 +88,15 @@ struct DeregConfMessage {
 struct DeregDeniedMessage {
 	const MessageType type = MessageType::MSG_DEREG_DENIED;
 	uint32 reqNum;
-	char reason[128];
+	char reason[REASONLENGTH];
 };
 
 struct OfferMessage {
 	const MessageType type = MessageType::MSG_OFFER;
 	uint32 reqNum;
-	char name[128];
-	char iPAddress[128];
-	char description[128];
+	char name[NAMELENGTH];
+	char iPAddress[IPLENGTH];
+	char description[DESCLENGTH];
 	float32 minimum;
 };
 
@@ -97,22 +104,22 @@ struct OfferConfMessage {
 	const MessageType type = MessageType::MSG_OFFER_CONF;
 	uint32 reqNum;
 	uint32 itemNum;
-	char description[128];
+	char description[DESCLENGTH];
 	float32 minimum;
 };
 
 struct NewItemMessage {
 	const MessageType type = MessageType::MSG_NEW_ITEM;
 	uint32 itemNum;
-	char description[128];
+	char description[DESCLENGTH];
 	float32 minimum;
-	char port[16]; // Maybe we don't need this?
+	char port[PORTLENGTH]; // Maybe we don't need this?
 };
 
 struct OfferDeniedMessage {
 	const MessageType type = MessageType::MSG_OFFER_DENIED;
 	uint32 reqNum;
-	char reason[128];
+	char reason[REASONLENGTH];
 };
 
 struct BidMessage {
@@ -131,9 +138,9 @@ struct HighestMessage {
 struct WinMessage {
 	const MessageType type = MessageType::MSG_WIN;
 	uint32 itemNum;
-	char name[128];
-	char iPAddress[128];
-	char port[16];
+	char name[NAMELENGTH];
+	char iPAddress[IPLENGTH];
+	char port[PORTLENGTH];
 	float32 amount;
 };
 
@@ -146,14 +153,14 @@ struct BidOverMessage {
 struct SoldToMessage {
 	const MessageType type = MessageType::MSG_SOLD_TO;
 	uint32 itemNum;
-	char name[128];
-	char iPAddress[128];
-	char port[16];
+	char name[NAMELENGTH];
+	char iPAddress[IPLENGTH];
+	char port[PORTLENGTH];
 	float32 amount;
 };
 
 struct NotSoldMessage {
 	const MessageType type = MessageType::MSG_NOT_SOLD;
 	uint32 itemNum;
-	char reason[128];
+	char reason[REASONLENGTH];
 };
