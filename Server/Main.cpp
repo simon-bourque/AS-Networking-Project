@@ -7,6 +7,7 @@
 #include "ThreadPool.h"
 #include "WSA.h"
 #include "Log.h"
+#include "Error.h"
 
 int main() {
 	std::cout << "Local ip: ";
@@ -15,6 +16,7 @@ int main() {
 
 	log("[INFO] Initializing server...");
 
+	initErrorCodeStringMap();
 	ThreadPool::init();
 	WSA::init();
 

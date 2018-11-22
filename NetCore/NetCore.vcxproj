@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Error.cpp" />
     <ClCompile Include="IPV4Address.cpp" />
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="Messages.cpp" />
@@ -31,6 +32,7 @@
     <ClCompile Include="WSA.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Error.h" />
     <ClInclude Include="IPV4Address.h" />
     <ClInclude Include="Log.h" />
     <ClInclude Include="Messages.h" />

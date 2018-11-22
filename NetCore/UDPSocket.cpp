@@ -4,6 +4,7 @@
 #include <Ws2tcpip.h>
 
 #include "OverlappedBuffer.h"
+#include "Error.h"
 
 UDPSocket::UDPSocket(bool overlapped) : Socket(Socket::SOCKET_TYPE::UDP, overlapped) {}
 
@@ -14,8 +15,8 @@ void UDPSocket::send(const Packet& packet) {
 	int32 numBytesSent = sendto(_winSocket, reinterpret_cast<const char*>(packet.getMessageData()), packet.getMessageSize(), 0, sockAddr, sockAddrSize);
 	if (numBytesSent == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
-		std::cout << WSAErrorCodeToString(errorCode) << std::endl;
-		throw std::runtime_error("Error receiving packet from socket: " + WSAErrorCodeToString(errorCode));
+		std::cout << getWSAErrorString(errorCode) << std::endl;
+		throw std::runtime_error("Error receiving packet from socket: " + getWSAErrorString(errorCode));
 	}
 }
 
@@ -27,8 +28,8 @@ Packet UDPSocket::receive() {
 	int32 numBytesreceived = recvfrom(_winSocket, reinterpret_cast<char*>(buffer), Packet::PACKET_SIZE, 0, reinterpret_cast<sockaddr*>(&senderAddress), &senderAddressSize);
 	if (numBytesreceived == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
-		std::cout << WSAErrorCodeToString(errorCode) << std::endl;
-		throw std::runtime_error("Error receiving packet from socket: " + WSAErrorCodeToString(errorCode));
+		std::cout << getWSAErrorString(errorCode) << std::endl;
+		throw std::runtime_error("Error receiving packet from socket: " + getWSAErrorString(errorCode));
 	}
 
 	Packet packet(buffer, numBytesreceived);

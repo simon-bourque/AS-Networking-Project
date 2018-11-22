@@ -17,8 +17,6 @@ public:
 		TCP,
 		UDP
 	};
-	
-	static std::string WSAErrorCodeToString(int errorCode);
 
 	Socket(SOCKET winSocket);
 	Socket(SOCKET_TYPE type, bool overlapped = false);
@@ -43,7 +41,6 @@ public:
 	HANDLE getWinSockHandle() { return reinterpret_cast<HANDLE>(_winSocket); }
 	SOCKET getWinSockSocket() { return _winSocket; }
 protected:
-
 	SOCKET _winSocket;
 };
 

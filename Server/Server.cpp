@@ -3,6 +3,7 @@
 #include "Log.h"
 #include "UDPSocket.h"
 #include "TCPSocket.h"
+#include "Error.h"
 
 #include <Mswsock.h>
 #include <iostream>
@@ -146,7 +147,7 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 		int32 resultOpt = setsockopt(acceptedSocket.getWinSockSocket(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, reinterpret_cast<char*>(&socketHandle), sizeof(socketHandle));
 		if (resultOpt == SOCKET_ERROR) {
 			int32 error = WSAGetLastError();
-			std::cout << Socket::WSAErrorCodeToString(error) << std::endl;
+			std::cout << getWSAErrorString(error) << std::endl;
 		}
 
 		IPV4Address peerAddress = acceptedSocket.getPeerAddress();
