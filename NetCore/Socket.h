@@ -4,7 +4,7 @@
 #include "Types.h"
 #include "Packet.h"
 #include "IPV4Address.h"
-#include "OverlappedBufferPool.h"
+#include "OverlappedBuffer.h"
 
 #include <string>
 
@@ -17,6 +17,8 @@ public:
 		TCP,
 		UDP
 	};
+	
+	static std::string WSAErrorCodeToString(int errorCode);
 
 	Socket(SOCKET winSocket);
 	Socket(SOCKET_TYPE type, bool overlapped = false);
@@ -28,7 +30,7 @@ public:
 	virtual void send(const Packet& packet) = 0;
 	virtual Packet receive() = 0;
 
-	virtual void receiveOverlapped(OverlappedBufferHandle overlappedBufferHandle) = 0;
+	virtual void receiveOverlapped(OverlappedBuffer& overlappedBuffer) = 0;
 	
 	void setTimeout(uint32 ms);
 	void setBlocking(bool blocking);
@@ -39,8 +41,8 @@ public:
 	Socket& operator=(Socket&& sock);
 
 	HANDLE getWinSockHandle() { return reinterpret_cast<HANDLE>(_winSocket); }
+	SOCKET getWinSockSocket() { return _winSocket; }
 protected:
-	std::string WSAErrorCodeToString(int errorCode) const;
 
 	SOCKET _winSocket;
 };

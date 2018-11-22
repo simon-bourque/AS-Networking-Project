@@ -23,7 +23,6 @@
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="Messages.cpp" />
     <ClCompile Include="OverlappedBuffer.cpp" />
-    <ClCompile Include="OverlappedBufferPool.cpp" />
     <ClCompile Include="Packet.cpp" />
     <ClCompile Include="Socket.cpp" />
     <ClCompile Include="TCPSocket.cpp" />
@@ -36,7 +35,6 @@
     <ClInclude Include="Log.h" />
     <ClInclude Include="Messages.h" />
     <ClInclude Include="OverlappedBuffer.h" />
-    <ClInclude Include="OverlappedBufferPool.h" />
     <ClInclude Include="Packet.h" />
     <ClInclude Include="Socket.h" />
     <ClInclude Include="TCPSocket.h" />

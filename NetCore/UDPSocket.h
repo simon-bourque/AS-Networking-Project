@@ -11,6 +11,6 @@ public:
 	virtual void send(const Packet& packet) override;
 	virtual Packet receive() override;
 
-	virtual void receiveOverlapped(OverlappedBufferHandle overlappedBufferHandle) override;
+	virtual void receiveOverlapped(OverlappedBuffer& overlappedBuffer) override;
 };
 

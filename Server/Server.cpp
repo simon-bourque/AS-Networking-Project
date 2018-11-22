@@ -4,6 +4,7 @@
 #include "UDPSocket.h"
 #include "TCPSocket.h"
 
+#include <Mswsock.h>
 #include <iostream>
 #include <mutex>
 
@@ -11,8 +12,6 @@ std::once_flag flag;
 
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
-
-void tcpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 
 void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 
@@ -39,52 +38,21 @@ void Server::shutdown() {
 }
 
 void Server::startUDPServiceThread() {
-	m_serverUDPBufferHandle = OverlappedBufferPool::get()->requestOverlappedBuffer(nullptr);
 	m_serverUDPSocket.bind(m_serverBindAddress);
 	
-	CreateIoCompletionPort(m_serverUDPSocket.getWinSockHandle(), m_udpServiceIOPort, 1, 0);
+	CreateIoCompletionPort(m_serverUDPSocket.getWinSockHandle(), m_udpServiceIOPort, 0, 0);
 
-	m_serverUDPSocket.receiveOverlapped(m_serverUDPBufferHandle);
+	m_serverUDPSocket.receiveOverlapped(m_serverUDPBuffer);
 	ThreadPool::get()->submit(udpServiceRoutine, this);
 }
 
 void Server::startTCPServiceThread() {
-	//m_serverTCPBufferHandle = OverlappedBufferPool::get()->requestOverlappedBuffer(nullptr);
-	//m_serverTCPSocket.bind(m_serverBindAddress);
-	//m_serverTCPSocket.listen();
-	//
-	//CreateIoCompletionPort(m_serverTCPSocket.getWinSockHandle(), m_tcpServiceIOPort, 1, 0);
+	m_serverTCPSocket.bind(m_serverBindAddress);
+	m_serverTCPSocket.listen();
+
+	CreateIoCompletionPort(m_serverTCPSocket.getWinSockHandle(), m_tcpServiceIOPort, 0, 0);
 	
-	//ThreadPool::get()->submit(tcpServiceRoutine, this);
-	
-	ThreadPool::get()->submit(tcpServiceExec, this);
-}
-
-void tcpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
-	UNREFERENCED_PARAMETER(work);
-	CallbackMayRunLong(instance);
-
-	Server* server = reinterpret_cast<Server*>(parameter);
-
-	TCPSocket listenerSocket;
-	listenerSocket.bind(server->m_serverBindAddress);
-	listenerSocket.listen();
-
-	log("[INFO] Started listening on TCP port %s", server->m_serverBindAddress.getSocketPortAsString().c_str());
-
-	server->m_listeningTCP = true;
-	while (server->m_listeningTCP) {
-		TCPSocket clientSocket = listenerSocket.accept();
-		std::cout << "Accepted connection..." << std::endl;
-
-		// Check if connection exists and then set state to connected
-		IPV4Address peerAddress = clientSocket.getPeerAddress();
-		std::cout << peerAddress.getSocketAddressAsString() << std::endl;
-		auto connectionIter = server->m_connections.find(peerAddress.getSocketAddressAsString());
-		if (connectionIter != server->m_connections.end()) {
-			connectionIter->second.connect(std::move(clientSocket));
-		}
-	}
+	ThreadPool::get()->submit(tcpServiceRoutine, this);
 }
 
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
@@ -102,7 +70,7 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 		GetQueuedCompletionStatus(server->m_udpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
 		
 		// Convert OverlappedBuffer to Packet for ease of use
-		OverlappedBuffer& buffer = OverlappedBufferPool::get()->getOverlappedBuffer(server->m_serverUDPBufferHandle);
+		OverlappedBuffer& buffer = server->m_serverUDPBuffer;
 		Packet packet(buffer.getData(), numBytes);
 		packet.setAddress(buffer.getAddress());
 
@@ -131,7 +99,7 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 			break;
 		}
 
-		server->m_serverUDPSocket.receiveOverlapped(server->m_serverUDPBufferHandle);
+		server->m_serverUDPSocket.receiveOverlapped(buffer);
 	}
 }
 
@@ -144,12 +112,51 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 	DWORD numBytes = 0;
 	ULONG_PTR key = 0;
 	LPOVERLAPPED overlapped = nullptr;
+	TCPSocket acceptedSocket = server->m_serverTCPSocket.acceptOverlapped(server->m_serverTCPBuffer);
 
 	log("[INFO] Started listening on TCP port %s", server->m_serverBindAddress.getSocketPortAsString().c_str());
 	while (server->m_running) {
-		GetQueuedCompletionStatus(server->m_tcpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
+		bool result = GetQueuedCompletionStatus(server->m_tcpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
+		if (!result) {
+			DWORD error = GetLastError();
 
-		std::cout << "PING" << std::endl;
+			if (error == ERROR_ABANDONED_WAIT_0) {
+				std::cout << "[ERROR] " << "uh oh" << std::endl;
+				continue;
+			}
+
+			LPVOID message = nullptr;
+			FormatMessage(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL,
+				error,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPTSTR)&message,
+				0, NULL);
+			std::cout << "[ERROR] " << std::string((char*)message);
+			LocalFree(message);
+			
+			continue;
+		}
+		std::cout << "Accepted connection..." << std::endl;
+
+		SOCKET socketHandle = server->m_serverTCPSocket.getWinSockSocket();
+		int32 resultOpt = setsockopt(acceptedSocket.getWinSockSocket(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, reinterpret_cast<char*>(&socketHandle), sizeof(socketHandle));
+		if (resultOpt == SOCKET_ERROR) {
+			int32 error = WSAGetLastError();
+			std::cout << Socket::WSAErrorCodeToString(error) << std::endl;
+		}
+
+		IPV4Address peerAddress = acceptedSocket.getPeerAddress();
+		std::cout << peerAddress.getSocketAddressAsString() << std::endl;
+		auto connectionIter = server->m_connections.find(peerAddress.getSocketAddressAsString());
+		if (connectionIter != server->m_connections.end()) {
+			connectionIter->second.connect(std::move(acceptedSocket));
+		}
+
+		acceptedSocket = server->m_serverTCPSocket.acceptOverlapped(server->m_serverTCPBuffer);
 	}
 }
 

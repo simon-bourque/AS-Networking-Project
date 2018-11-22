@@ -40,9 +40,7 @@ Packet UDPSocket::receive() {
 
 
 
-void UDPSocket::receiveOverlapped(OverlappedBufferHandle overlappedBufferHandle) {
-	OverlappedBuffer& overlappedBuffer = OverlappedBufferPool::get()->getOverlappedBuffer(overlappedBufferHandle);
-
+void UDPSocket::receiveOverlapped(OverlappedBuffer& overlappedBuffer) {
 	WSARecvFrom(
 		_winSocket,
 		&overlappedBuffer.m_buffer,

@@ -11,12 +11,10 @@
 #include "IPV4Address.h"
 #include "UDPSocket.h"
 #include "TCPSocket.h"
-#include "OverlappedBufferPool.h"
+#include "OverlappedBuffer.h"
 
 class Server {
 private:
-	friend void tcpServiceExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
-	
 	friend void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 	friend void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 	friend void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
@@ -30,8 +28,8 @@ private:
 
 	IPV4Address m_serverBindAddress;
 
-	OverlappedBufferHandle m_serverUDPBufferHandle;
-	OverlappedBufferHandle m_serverTCPBufferHandle;
+	OverlappedBuffer m_serverUDPBuffer;
+	OverlappedBuffer m_serverTCPBuffer;
 
 	UDPSocket m_serverUDPSocket;
 	TCPSocket m_serverTCPSocket;

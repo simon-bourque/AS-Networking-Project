@@ -2,13 +2,19 @@
 
 #include "OverlappedBuffer.h"
 
-#include "Mswsock.h"
+#include <Mswsock.h>
+#include <iostream>
 
 TCPSocket::TCPSocket(bool overlapped) : Socket(Socket::SOCKET_TYPE::TCP, overlapped) {}
 
 TCPSocket::TCPSocket(SOCKET socket) : Socket(socket) {}
 
 TCPSocket::TCPSocket(TCPSocket&& socket) : Socket(std::move(socket)) {}
+
+TCPSocket& TCPSocket::operator=(TCPSocket&& sock) {
+	Socket::operator=(std::move(sock));
+	return *this;
+}
 
 void TCPSocket::send(const Packet& packet) {
 	if (::send(_winSocket, reinterpret_cast<const char*>(packet.getMessageData()), packet.getMessageSize(), 0) == SOCKET_ERROR) {
@@ -52,13 +58,12 @@ TCPSocket TCPSocket::accept() {
 	return { clientSocket };
 }
 
-TCPSocket TCPSocket::acceptOverlapped(OverlappedBufferHandle overlappedBufferHandle) {
+TCPSocket TCPSocket::acceptOverlapped(OverlappedBuffer& overlappedBuffer) {
 	TCPSocket clientSocket;
-	OverlappedBuffer& overlappedBuffer = OverlappedBufferPool::get()->getOverlappedBuffer(overlappedBufferHandle);
 
 	uint8* receiveData = new uint8[Packet::PACKET_SIZE];
 	DWORD bytesReceived = 0;
-	AcceptEx(
+	bool result = AcceptEx(
 		_winSocket,
 		clientSocket._winSocket,
 		receiveData,
@@ -68,7 +73,17 @@ TCPSocket TCPSocket::acceptOverlapped(OverlappedBufferHandle overlappedBufferHan
 		&bytesReceived,
 		&overlappedBuffer.m_overlapped
 	);
-	delete[] receiveData;
+	//delete[] receiveData;
+	
+	if (!result) {
+		int32 error = WSAGetLastError();
+		if (error == ERROR_IO_PENDING) {
+			//std::cout << "IO Pending" << std::endl;
+		}
+		else {
+			std::cout << WSAErrorCodeToString(error) << std::endl;
+		}
+	}
 
 	return clientSocket;
 }
@@ -90,14 +105,16 @@ void TCPSocket::shutdown() {
 IPV4Address TCPSocket::getPeerAddress() const {
 	sockaddr_in sockAddress;
 	int32 sockAddressSize = sizeof(sockaddr_in);
-	getpeername(_winSocket, reinterpret_cast<sockaddr*>(&sockAddress), &sockAddressSize);
+	int32 result = getpeername(_winSocket, reinterpret_cast<sockaddr*>(&sockAddress), &sockAddressSize);
+	if (result == SOCKET_ERROR) {
+		int32 error = WSAGetLastError();
+		std::cout << WSAErrorCodeToString(error) << std::endl;
+	}
 
 	return IPV4Address(sockAddress);
 }
 
-void TCPSocket::receiveOverlapped(OverlappedBufferHandle overlappedBufferHandle) {
-	OverlappedBuffer& overlappedBuffer = OverlappedBufferPool::get()->getOverlappedBuffer(overlappedBufferHandle);
-
+void TCPSocket::receiveOverlapped(OverlappedBuffer& overlappedBuffer) {
 	WSARecv(
 		_winSocket,
 		&overlappedBuffer.m_buffer,
