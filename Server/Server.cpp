@@ -79,25 +79,65 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 		log(LogType::LOG_RECEIVE, type, packet.getAddress());
 
 		switch (type) {
-		case MessageType::MSG_REGISTER:
-			RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
+			case MessageType::MSG_REGISTER:
+			{
+				RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
 
-			// REGISTER HIM!
-			server->m_connections[packet.getAddress().getSocketAddressAsString()] = Connection();
+				// REGISTER HIM!
+				server->m_connections[packet.getAddress().getSocketAddressAsString()] = Connection();
 
-			RegisteredMessage registeredMsg;
-			registeredMsg.reqNum = msg.reqNum;
-			memcpy(registeredMsg.name, msg.name, NAMELENGTH);
-			memcpy(registeredMsg.iPAddress, msg.iPAddress, IPLENGTH);
-			memcpy(registeredMsg.port, msg.port, PORTLENGTH);
+				RegisteredMessage registeredMsg;
+				registeredMsg.reqNum = msg.reqNum;
+				memcpy(registeredMsg.name, msg.name, NAMELENGTH);
+				memcpy(registeredMsg.iPAddress, msg.iPAddress, IPLENGTH);
+				memcpy(registeredMsg.port, msg.port, PORTLENGTH);
 
-			Packet registeredPacket = serializeMessage(registeredMsg);
-			registeredPacket.setAddress(packet.getAddress());
+				Packet registeredPacket = serializeMessage(registeredMsg);
+				registeredPacket.setAddress(packet.getAddress());
 
-			server->m_serverUDPSocket.send(registeredPacket);
-			log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
+				server->m_serverUDPSocket.send(registeredPacket);
+				log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
 
-			break;
+				break;
+			}
+			case MessageType::MSG_DEREGISTER:
+			{
+				DeregisterMessage msg = deserializeMessage<DeregisterMessage>(packet);
+
+				// DEREGISTER HIM!
+				auto it = server->m_connections.find(packet.getAddress().getSocketAddressAsString());
+				if (it != server->m_connections.end())
+				{
+					// User was found in the registered table, remove him
+					DeregConfMessage deregConfMsg;
+					deregConfMsg.reqNum = msg.reqNum;
+
+					Packet deregConfPacket = serializeMessage(deregConfMsg);
+					deregConfPacket.setAddress(packet.getAddress());
+
+					server->m_serverUDPSocket.send(deregConfPacket);
+					log(LogType::LOG_SEND, deregConfMsg.type, deregConfPacket.getAddress());
+
+					server->m_connections.erase(it);
+				}
+				else
+				{
+					// User was not found in the registered table
+					DeregDeniedMessage deregDeniedMsg;
+					deregDeniedMsg.reqNum = msg.reqNum;
+
+					char reason[REASONLENGTH] = "User was not previously registered";
+					memcpy(deregDeniedMsg.reason, reason, REASONLENGTH);
+
+					Packet deregDeniedPacket = serializeMessage(deregDeniedMsg);
+					deregDeniedPacket.setAddress(packet.getAddress());
+
+					server->m_serverUDPSocket.send(deregDeniedPacket);
+					log(LogType::LOG_SEND, deregDeniedMsg.type, deregDeniedPacket.getAddress());
+				}
+
+				break;
+			}
 		}
 
 		server->m_serverUDPSocket.receiveOverlapped(buffer);

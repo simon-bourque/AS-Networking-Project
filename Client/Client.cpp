@@ -7,7 +7,7 @@
 
 int Client::s_reqNum = 0;
 
-static char constexpr s_mainMenuString[] = "\n0.Deregister\n1.Send Offer\n2.Send Bid\n3.Display Offers\n4.Display Bids\n5.Display Won Items\n6.Disconnect";
+static char constexpr s_mainMenuString[] = "\n0.Register\n1.Deregister\n2.Send Offer\n3.Send Bid\n4.Display Offers\n5.Display Bids\n6.Display Won Items\n7.Disconnect";
 
 Client::Client()
 	: _state(ClientState::MAIN_MENU)
@@ -22,18 +22,9 @@ Client::Client()
 	Packet testPacket(testData, sizeof(testData) / sizeof(testData[0]));
 
 	// Startup sequence
-	sendRegister("127.0.0.1", DEFAULT_PORT);
-	if (_registered)
+	while (_continue)
 	{
-		// We manage to register, try to establish a TCP connection
-		connect();
-
-		while (_continue)
-		{
-			interpretState();
-		}
-
-		//sendPacket(testPacket);
+		interpretState();
 	}
 }
 
@@ -48,18 +39,20 @@ void Client::printMainMenu()
 	switch (chosenOption)
 	{
 	case 0:
-		_state = ClientState::DEREGISTERING; break;
+		_state = ClientState::REGISTER; break;
 	case 1:
-		_state = ClientState::SENDING_OFFER; break;
+		_state = ClientState::DEREGISTER; break;
 	case 2:
-		_state = ClientState::SENDING_BID; break;
+		_state = ClientState::SENDING_OFFER; break;
 	case 3:
-		_state = ClientState::DISPLAYING_OFFERS; break;
+		_state = ClientState::SENDING_BID; break;
 	case 4:
-		_state = ClientState::DISPLAYING_BIDS; break;
+		_state = ClientState::DISPLAYING_OFFERS; break;
 	case 5:
-		_state = ClientState::DISPLAYING_WON_ITEMS; break;
+		_state = ClientState::DISPLAYING_BIDS; break;
 	case 6:
+		_state = ClientState::DISPLAYING_WON_ITEMS; break;
+	case 7:
 		_state = ClientState::DISCONNECTING; break;
 	default:
 		_state = ClientState::MAIN_MENU;
@@ -70,7 +63,9 @@ void Client::interpretState()
 {
 	switch(_state)
 	{
-	case ClientState::DEREGISTERING:
+	case ClientState::REGISTER:
+		sendRegister("127.0.0.1", DEFAULT_PORT); break; // HARD CODED ADDRESS
+	case ClientState::DEREGISTER:
 		sendDeregister(); break;
 	case ClientState::SENDING_OFFER:
 		sendOffer(); break;
@@ -114,20 +109,38 @@ void Client::sendRegister(std::string serverAddress, std::string port){
 
 		if (registeredPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_REGISTERED))
 		{
-			// We received a registered packet from the server
-			_registered = true;
-			break;
+			RegisteredMessage registeredMsg = deserializeMessage<RegisteredMessage>(registeredPacket);
+
+			if (registeredMsg.reqNum == registerMsg.reqNum)
+			{
+				// We received a registered packet from the server
+				log(LogType::LOG_RECEIVE, MessageType::MSG_REGISTERED, _serverIpv4);
+
+				_registered = true;
+
+				// We manage to register, try to establish a TCP connection
+				connect();
+
+				break;
+			}
+			else
+			{
+				// The request numbers do not match? Try again
+			}
+		}
+		else if (registeredPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_UNREGISTERED))
+		{
+			// An error occurred on the server while registering. Print reason
+			log(LogType::LOG_RECEIVE, MessageType::MSG_UNREGISTERED, _serverIpv4);
+
+			UnregisteredMessage unregMsg = deserializeMessage<UnregisteredMessage>(registeredPacket);
+
+			log(unregMsg.reason);
 		}
 	}
 
-	if (_registered)
-	{
-		log(LogType::LOG_RECEIVE, MessageType::MSG_REGISTERED, _serverIpv4);
-	}
-	else
-	{
-		log("ERROR: Could not register to the server");
-	}
+	// Go back to main menu
+	_state = ClientState::MAIN_MENU;
 }
 
 void Client::sendDeregister()

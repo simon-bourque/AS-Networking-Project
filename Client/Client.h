@@ -14,7 +14,8 @@ public:
 private:
 	enum class ClientState : uint8 {
 		MAIN_MENU,
-		DEREGISTERING,
+		REGISTER,
+		DEREGISTER,
 		SENDING_OFFER,
 		SENDING_BID,
 		DISPLAYING_OFFERS,
