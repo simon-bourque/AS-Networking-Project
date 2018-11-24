@@ -24,16 +24,17 @@ private:
 		DISCONNECTING
 	};
 
-	// Messages & menu items
+	// UDP
 	void sendRegister(std::string serverAddress, std::string port);
 	void sendDeregister();
 	void sendOffer();
 	void sendBid();
+
+	void disconnect();
+
 	void printBids();
 	void printOffers();
 	void printWonItems();
-	void disconnect();
-
 	void printMainMenu();
 
 	void interpretState();
@@ -46,6 +47,7 @@ private:
 	static int s_reqNum;
 
 	ClientState _state;
+
 	IPV4Address _serverIpv4;
 	UDPSocket _udpSocket;
 	TCPSocket _tcpSocket;

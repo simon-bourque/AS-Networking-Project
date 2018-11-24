@@ -75,7 +75,12 @@ void Socket::setBlocking(bool blocking) {
 }
 
 Socket::~Socket() {
-	closesocket(_winSocket);
+	if (closesocket(_winSocket) == SOCKET_ERROR)
+	{
+		int errorCode = WSAGetLastError();
+		printf("%s", getWSAErrorString(errorCode).c_str());
+		throw std::runtime_error("Failed to close socket: " + getWSAErrorString(errorCode));
+	}
 }
 
 bool Socket::canReceive() const {
