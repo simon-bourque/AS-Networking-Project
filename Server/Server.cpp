@@ -13,8 +13,7 @@ std::once_flag flag;
 
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
-
-void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
+void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 
 Server::Server(const IPV4Address& bindAddress) : 
 	m_listeningUDP(false)
@@ -26,6 +25,7 @@ Server::Server(const IPV4Address& bindAddress) :
 {
 	m_udpServiceIOPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 	m_tcpServiceIOPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	m_connectionServiceIOPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 }
 
 Server::~Server() {}
@@ -54,6 +54,10 @@ void Server::startTCPServiceThread() {
 	CreateIoCompletionPort(m_serverTCPSocket.getWinSockHandle(), m_tcpServiceIOPort, 0, 0);
 	
 	ThreadPool::get()->submit(tcpServiceRoutine, this);
+}
+
+void Server::startConnectionServiceThread() {
+	ThreadPool::get()->submit(connectionServiceRoutine, this);
 }
 
 void Server::handlePacket(const Packet& packet) {
@@ -189,14 +193,14 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 		std::cout << peerAddress.getSocketAddressAsString() << std::endl;
 		auto connectionIter = server->m_connections.find(peerAddress.getSocketAddressAsString());
 		if (connectionIter != server->m_connections.end()) {
-			connectionIter->second.connect(std::move(acceptedSocket));
+			connectionIter->second.connect(std::move(acceptedSocket), server->m_connectionServiceIOPort);
 		}
 
 		acceptedSocket = server->m_serverTCPSocket.acceptOverlapped(server->m_serverTCPBuffer);
 	}
 }
 
-void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
+void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
 	UNREFERENCED_PARAMETER(work);
 	CallbackMayRunLong(instance);
 
@@ -207,8 +211,17 @@ void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WO
 	LPOVERLAPPED overlapped = nullptr;
 
 	while (server->m_running) {
-		GetQueuedCompletionStatus(server->m_udpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
+		GetQueuedCompletionStatus(server->m_connectionServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
 
-		// Find connection from key
+		Connection* connection = reinterpret_cast<Connection*>(key);
+
+		OverlappedBuffer& buffer = connection->getOverlappedBuffer();
+		Packet packet(buffer.getData(), numBytes);
+		
+		// Get this from Connection
+		//packet.setAddress(buffer.getAddress());
+
+		// Handle packet
+		std::cout << "PIIINIGNIGNGINGIGNI" << std::endl;
 	}
 }

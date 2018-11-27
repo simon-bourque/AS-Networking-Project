@@ -8,6 +8,8 @@
 
 constexpr uint32 OVERLAPPED_BUFFER_SIZE = 512;
 
+class Connection;
+
 class OverlappedBuffer {
 	friend class UDPSocket;
 	friend class TCPSocket;

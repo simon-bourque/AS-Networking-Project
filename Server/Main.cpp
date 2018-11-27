@@ -23,6 +23,7 @@ int main() {
 	Server server(IPV4Address(ip, DEFAULT_PORT));
 	server.startUDPServiceThread();
 	server.startTCPServiceThread();
+	server.startConnectionServiceThread();
 
 	ThreadPool::get()->clean();
 	ThreadPool::destroy();
