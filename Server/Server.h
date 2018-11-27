@@ -36,6 +36,10 @@ private:
 
 	HANDLE m_udpServiceIOPort;
 	HANDLE m_tcpServiceIOPort;
+
+	void handlePacket(const Packet& packet);
+	void handleRegisterPacket(const Packet& packet);
+	void handleDeregisterPacket(const Packet& packet);
 public:
 	Server(const IPV4Address& bindAddress);
 	virtual ~Server();

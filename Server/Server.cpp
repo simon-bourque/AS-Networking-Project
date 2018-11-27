@@ -56,6 +56,76 @@ void Server::startTCPServiceThread() {
 	ThreadPool::get()->submit(tcpServiceRoutine, this);
 }
 
+void Server::handlePacket(const Packet& packet) {
+	MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
+	log(LogType::LOG_RECEIVE, type, packet.getAddress());
+
+	switch (type) {
+	case MessageType::MSG_REGISTER:
+		handleRegisterPacket(packet);
+		break;
+	case MessageType::MSG_DEREGISTER:
+		handleDeregisterPacket(packet);
+		break;
+	}
+
+}
+
+void Server::handleRegisterPacket(const Packet& packet) {
+	RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
+
+	// REGISTER HIM!
+	m_connections[packet.getAddress().getSocketAddressAsString()] = Connection();
+
+	RegisteredMessage registeredMsg;
+	registeredMsg.reqNum = msg.reqNum;
+	memcpy(registeredMsg.name, msg.name, NAMELENGTH);
+	memcpy(registeredMsg.iPAddress, msg.iPAddress, IPLENGTH);
+	memcpy(registeredMsg.port, msg.port, PORTLENGTH);
+
+	Packet registeredPacket = serializeMessage(registeredMsg);
+	registeredPacket.setAddress(packet.getAddress());
+
+	m_serverUDPSocket.send(registeredPacket);
+	log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
+}
+
+void Server::handleDeregisterPacket(const Packet& packet) {
+	DeregisterMessage msg = deserializeMessage<DeregisterMessage>(packet);
+
+	// DEREGISTER HIM!
+	auto it = m_connections.find(packet.getAddress().getSocketAddressAsString());
+	if (it != m_connections.end())
+	{
+		// User was found in the registered table, remove him
+		DeregConfMessage deregConfMsg;
+		deregConfMsg.reqNum = msg.reqNum;
+
+		Packet deregConfPacket = serializeMessage(deregConfMsg);
+		deregConfPacket.setAddress(packet.getAddress());
+
+		m_serverUDPSocket.send(deregConfPacket);
+		log(LogType::LOG_SEND, deregConfMsg.type, deregConfPacket.getAddress());
+
+		m_connections.erase(it);
+	}
+	else
+	{
+		// User was not found in the registered table
+		DeregDeniedMessage deregDeniedMsg;
+		deregDeniedMsg.reqNum = msg.reqNum;
+
+		char reason[REASONLENGTH] = "User was not previously registered";
+		memcpy(deregDeniedMsg.reason, reason, REASONLENGTH);
+
+		Packet deregDeniedPacket = serializeMessage(deregDeniedMsg);
+		deregDeniedPacket.setAddress(packet.getAddress());
+
+		m_serverUDPSocket.send(deregDeniedPacket);
+		log(LogType::LOG_SEND, deregDeniedMsg.type, deregDeniedPacket.getAddress());
+	}
+}
+
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
 	UNREFERENCED_PARAMETER(work);
 	CallbackMayRunLong(instance);
@@ -75,70 +145,7 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 		Packet packet(buffer.getData(), numBytes);
 		packet.setAddress(buffer.getAddress());
 
-		MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
-		log(LogType::LOG_RECEIVE, type, packet.getAddress());
-
-		switch (type) {
-			case MessageType::MSG_REGISTER:
-			{
-				RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
-
-				// REGISTER HIM!
-				server->m_connections[packet.getAddress().getSocketAddressAsString()] = Connection();
-
-				RegisteredMessage registeredMsg;
-				registeredMsg.reqNum = msg.reqNum;
-				memcpy(registeredMsg.name, msg.name, NAMELENGTH);
-				memcpy(registeredMsg.iPAddress, msg.iPAddress, IPLENGTH);
-				memcpy(registeredMsg.port, msg.port, PORTLENGTH);
-
-				Packet registeredPacket = serializeMessage(registeredMsg);
-				registeredPacket.setAddress(packet.getAddress());
-
-				server->m_serverUDPSocket.send(registeredPacket);
-				log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
-
-				break;
-			}
-			case MessageType::MSG_DEREGISTER:
-			{
-				DeregisterMessage msg = deserializeMessage<DeregisterMessage>(packet);
-
-				// DEREGISTER HIM!
-				auto it = server->m_connections.find(packet.getAddress().getSocketAddressAsString());
-				if (it != server->m_connections.end())
-				{
-					// User was found in the registered table, remove him
-					DeregConfMessage deregConfMsg;
-					deregConfMsg.reqNum = msg.reqNum;
-
-					Packet deregConfPacket = serializeMessage(deregConfMsg);
-					deregConfPacket.setAddress(packet.getAddress());
-
-					server->m_serverUDPSocket.send(deregConfPacket);
-					log(LogType::LOG_SEND, deregConfMsg.type, deregConfPacket.getAddress());
-
-					server->m_connections.erase(it);
-				}
-				else
-				{
-					// User was not found in the registered table
-					DeregDeniedMessage deregDeniedMsg;
-					deregDeniedMsg.reqNum = msg.reqNum;
-
-					char reason[REASONLENGTH] = "User was not previously registered";
-					memcpy(deregDeniedMsg.reason, reason, REASONLENGTH);
-
-					Packet deregDeniedPacket = serializeMessage(deregDeniedMsg);
-					deregDeniedPacket.setAddress(packet.getAddress());
-
-					server->m_serverUDPSocket.send(deregDeniedPacket);
-					log(LogType::LOG_SEND, deregDeniedMsg.type, deregDeniedPacket.getAddress());
-				}
-
-				break;
-			}
-		}
+		server->handlePacket(packet);
 
 		server->m_serverUDPSocket.receiveOverlapped(buffer);
 	}
@@ -159,26 +166,14 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 	while (server->m_running) {
 		bool result = GetQueuedCompletionStatus(server->m_tcpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
 		if (!result) {
+			// TODO do something when error
 			DWORD error = GetLastError();
 
 			if (error == ERROR_ABANDONED_WAIT_0) {
-				std::cout << "[ERROR] " << "uh oh" << std::endl;
 				continue;
 			}
 
-			LPVOID message = nullptr;
-			FormatMessage(
-				FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL,
-				error,
-				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-				(LPTSTR)&message,
-				0, NULL);
-			std::cout << "[ERROR] " << std::string((char*)message);
-			LocalFree(message);
-			
+			std::cout << "[ERROR] " << getWindowsErrorString(error);
 			continue;
 		}
 		std::cout << "Accepted connection..." << std::endl;

@@ -5,6 +5,24 @@
 
 static std::unordered_map<int32, std::string> g_errorCodeStringMap;
 
+std::string getWindowsErrorString(uint32 error) {
+	LPVOID message = nullptr;
+	FormatMessage(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		FORMAT_MESSAGE_FROM_SYSTEM |
+		FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL,
+		error,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPTSTR)&message,
+		0, NULL);
+	std::string errorString((char*)message);
+
+	LocalFree(message);
+
+	return errorString;
+}
+
 std::string getWSAErrorString(int32 error) {
 	auto iter = g_errorCodeStringMap.find(error);
 	if (iter != g_errorCodeStringMap.end()) {
