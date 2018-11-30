@@ -4,12 +4,12 @@
 #include "Log.h"
 
 Connection::Connection() :
-	m_state(ConnectionState::CONNECTING)
+	m_state(ConnectionState::DISCONNECTED)
 	, m_tcpSocket(nullptr)
 {}
 
 Connection::Connection(const std::string& name, const IPV4Address& address) :
-	m_state(ConnectionState::CONNECTING)
+	m_state(ConnectionState::DISCONNECTED)
 	, m_tcpSocket(nullptr)
 	, m_uniqueName(name)
 	, m_address(address)
@@ -30,6 +30,9 @@ void Connection::connect(TCPSocket&& socket, HANDLE ioCompletionPort) {
 }
 
 void Connection::shutdown() {
-	m_tcpSocket->shutdown();
-	m_tcpSocket->close();
+	if (m_state != ConnectionState::DISCONNECTED) {
+		m_tcpSocket->shutdown();
+		m_tcpSocket->close();
+		m_state = ConnectionState::DISCONNECTED;
+	}
 }

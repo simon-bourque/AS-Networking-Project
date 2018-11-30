@@ -77,8 +77,15 @@ void Server::handlePacket(const Packet& packet) {
 void Server::handleRegisterPacket(const Packet& packet) {
 	RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
 
-	// REGISTER HIM!
-	m_connections[packet.getAddress().getSocketAddressAsString()] = Connection(std::string(msg.name), packet.getAddress());
+	// Attempt to register
+	auto iter = m_connections.find(packet.getAddress().getSocketAddressAsString());
+	if (iter == m_connections.end()) {
+		log("[INFO] Registering client %s (%s)", msg.name, packet.getAddress().getSocketAddressAsString().c_str());
+		m_connections[packet.getAddress().getSocketAddressAsString()] = Connection(std::string(msg.name), packet.getAddress());
+	}
+	else {
+		log("[INFO] Client %s (%s) already registered", msg.name, packet.getAddress().getSocketAddressAsString().c_str());
+	}
 
 	RegisteredMessage registeredMsg;
 	registeredMsg.reqNum = msg.reqNum;
@@ -236,6 +243,8 @@ void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, P
 
 	while (server->m_running) {
 		bool result = GetQueuedCompletionStatus(server->m_connectionServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
+		Connection* connection = reinterpret_cast<Connection*>(key);
+		
 		if (!result) {
 			DWORD error = GetLastError();
 
@@ -243,7 +252,13 @@ void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, P
 				continue;
 			}
 			if (error == ERROR_OPERATION_ABORTED) {
-				// connection shutdown
+				// Connection shutdown by server
+				continue;
+			}
+			if (error == ERROR_NETNAME_DELETED) {
+				// Ungraceful shutdown (AKA crash on client)
+				// TODO delete connection data if not bidding
+				connection->shutdown();
 				continue;
 			}
 
@@ -251,11 +266,16 @@ void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, P
 			continue;
 		}
 		if (key == 0) {
-			// Shutdown
+			// Server shutdown
 			break;
 		}
+		if (numBytes == 0) {
+			// Connection shutdown by client
+			// TODO delete connection data if not bidding
+			connection->shutdown();
+			continue;
+		}
 
-		Connection* connection = reinterpret_cast<Connection*>(key);
 
 		OverlappedBuffer& buffer = connection->getOverlappedBuffer();
 		Packet packet(buffer.getData(), numBytes);

@@ -12,7 +12,7 @@ class TCPSocket;
 class Connection {
 public:
 	enum class ConnectionState {
-		CONNECTING,
+		DISCONNECTED,
 		CONNECTED
 	};
 private:
