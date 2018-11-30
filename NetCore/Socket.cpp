@@ -75,11 +75,13 @@ void Socket::setBlocking(bool blocking) {
 }
 
 Socket::~Socket() {
-	if (closesocket(_winSocket) == SOCKET_ERROR)
-	{
-		int errorCode = WSAGetLastError();
-		printf("%s", getWSAErrorString(errorCode).c_str());
-		throw std::runtime_error("Failed to close socket: " + getWSAErrorString(errorCode));
+	close();
+}
+
+void Socket::close() {
+	if (_winSocket != INVALID_SOCKET) {
+		closesocket(_winSocket);
+		_winSocket = INVALID_SOCKET;
 	}
 }
 

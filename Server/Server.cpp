@@ -9,16 +9,12 @@
 #include <iostream>
 #include <mutex>
 
-std::once_flag flag;
-
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 
 Server::Server(const IPV4Address& bindAddress) : 
-	m_listeningUDP(false)
-	, m_listeningTCP(false)
-	, m_serverBindAddress(bindAddress)
+	m_serverBindAddress(bindAddress)
 	, m_serverUDPSocket(true)
 	, m_serverTCPSocket(true)
 	, m_running(true)
@@ -31,17 +27,20 @@ Server::Server(const IPV4Address& bindAddress) :
 Server::~Server() {}
 
 void Server::shutdown() {
-	// TODO how to close io completion port plz?
-	std::call_once(flag, [this]() {
-		m_listeningUDP = false;
-		m_listeningTCP = false;
-	});
+	m_running = false;
+	m_serverUDPSocket.close();
+	m_serverTCPSocket.close();
+	m_connections.clear();
+
+	PostQueuedCompletionStatus(m_udpServiceIOPort, 0, 0, nullptr);
+	PostQueuedCompletionStatus(m_tcpServiceIOPort, 0, 0, nullptr);
+	PostQueuedCompletionStatus(m_connectionServiceIOPort, 0, 0, nullptr);
 }
 
 void Server::startUDPServiceThread() {
 	m_serverUDPSocket.bind(m_serverBindAddress);
 	
-	CreateIoCompletionPort(m_serverUDPSocket.getWinSockHandle(), m_udpServiceIOPort, 0, 0);
+	CreateIoCompletionPort(m_serverUDPSocket.getWinSockHandle(), m_udpServiceIOPort, 1, 0);
 
 	m_serverUDPSocket.receiveOverlapped(m_serverUDPBuffer);
 	ThreadPool::get()->submit(udpServiceRoutine, this);
@@ -51,7 +50,7 @@ void Server::startTCPServiceThread() {
 	m_serverTCPSocket.bind(m_serverBindAddress);
 	m_serverTCPSocket.listen();
 
-	CreateIoCompletionPort(m_serverTCPSocket.getWinSockHandle(), m_tcpServiceIOPort, 0, 0);
+	CreateIoCompletionPort(m_serverTCPSocket.getWinSockHandle(), m_tcpServiceIOPort, 1, 0);
 	
 	ThreadPool::get()->submit(tcpServiceRoutine, this);
 }
@@ -142,8 +141,16 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 
 	log("[INFO] Started listening on UDP port %s", server->m_serverBindAddress.getSocketPortAsString().c_str());
 	while (server->m_running) {
-		GetQueuedCompletionStatus(server->m_udpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
-		
+		bool status = GetQueuedCompletionStatus(server->m_udpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
+		if (!status) {
+			// Most likely shutting down
+			break;
+		}
+		if (key == 0) {
+			// Shutdown requested
+			break;
+		}
+
 		// Convert OverlappedBuffer to Packet for ease of use
 		OverlappedBuffer& buffer = server->m_serverUDPBuffer;
 		Packet packet(buffer.getData(), numBytes);
@@ -151,8 +158,15 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 
 		server->handlePacket(packet);
 
-		server->m_serverUDPSocket.receiveOverlapped(buffer);
+		try {
+			server->m_serverUDPSocket.receiveOverlapped(buffer);
+		}
+		catch (int32 error) {
+			log("[ERROR] %s", getWSAErrorString(error).c_str());
+			break;
+		}
 	}
+	log("[INFO] UDP service routine shutdown.");
 }
 
 void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
@@ -174,11 +188,15 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 			DWORD error = GetLastError();
 
 			if (error == ERROR_ABANDONED_WAIT_0) {
-				continue;
+				break;
 			}
 
 			std::cout << "[ERROR] " << getWindowsErrorString(error);
-			continue;
+			break;
+		}
+		if (key == 0) {
+			// shutdown
+			break;
 		}
 		std::cout << "Accepted connection..." << std::endl;
 
@@ -198,6 +216,8 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 
 		acceptedSocket = server->m_serverTCPSocket.acceptOverlapped(server->m_serverTCPBuffer);
 	}
+
+	log("[INFO] TCP service routine shutdown.");
 }
 
 void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
@@ -212,6 +232,10 @@ void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, P
 
 	while (server->m_running) {
 		GetQueuedCompletionStatus(server->m_connectionServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
+		if (key == 0) {
+			// Shutdown
+			break;
+		}
 
 		Connection* connection = reinterpret_cast<Connection*>(key);
 
@@ -224,4 +248,5 @@ void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, P
 		// Handle packet
 		std::cout << "PIIINIGNIGNGINGIGNI" << std::endl;
 	}
+	log("[INFO] Connection service routine shutdown.");
 }

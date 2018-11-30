@@ -21,9 +21,6 @@ private:
 
 	std::unordered_map<std::string, Connection> m_connections;
 
-	bool m_listeningUDP;
-	bool m_listeningTCP;
-
 	bool m_running;
 
 	IPV4Address m_serverBindAddress;

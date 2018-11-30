@@ -40,6 +40,8 @@ public:
 
 	HANDLE getWinSockHandle() { return reinterpret_cast<HANDLE>(_winSocket); }
 	SOCKET getWinSockSocket() { return _winSocket; }
+
+	void close();
 protected:
 	SOCKET _winSocket;
 };
