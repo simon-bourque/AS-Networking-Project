@@ -48,7 +48,7 @@ Packet UDPSocket::receive() {
 void UDPSocket::receiveOverlapped(OverlappedBuffer& overlappedBuffer) {
 	int32 status = WSARecvFrom(
 		_winSocket,
-		&overlappedBuffer.m_buffer,
+		&overlappedBuffer.m_WSAbuffer,
 		1,
 		NULL,
 		reinterpret_cast<LPDWORD>(&overlappedBuffer.m_flags),

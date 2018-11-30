@@ -13,8 +13,10 @@ class Connection;
 class OverlappedBuffer {
 	friend class UDPSocket;
 	friend class TCPSocket;
+	friend class Connection;
 private:
-	WSABUF m_buffer;
+	char* m_buffer;
+	WSABUF m_WSAbuffer;
 	WSAOVERLAPPED m_overlapped;
 
 	uint32 m_flags;

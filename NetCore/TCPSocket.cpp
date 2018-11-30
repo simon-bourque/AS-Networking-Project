@@ -62,7 +62,7 @@ TCPSocket TCPSocket::accept() {
 }
 
 TCPSocket TCPSocket::acceptOverlapped(OverlappedBuffer& overlappedBuffer) {
-	TCPSocket clientSocket;
+	TCPSocket clientSocket(true);
 
 	uint8* receiveData = new uint8[Packet::PACKET_SIZE];
 	DWORD bytesReceived = 0;
@@ -115,13 +115,19 @@ IPV4Address TCPSocket::getPeerAddress() const {
 }
 
 void TCPSocket::receiveOverlapped(OverlappedBuffer& overlappedBuffer) {
-	WSARecv(
+	int32 status = WSARecv(
 		_winSocket,
-		&overlappedBuffer.m_buffer,
+		&overlappedBuffer.m_WSAbuffer,
 		1,
 		NULL,
 		reinterpret_cast<LPDWORD>(&overlappedBuffer.m_flags),
 		&overlappedBuffer.m_overlapped,
 		NULL
 	);
+	if (status == SOCKET_ERROR) {
+		int32 error = WSAGetLastError();
+		if (error != WSA_IO_PENDING) {
+			throw error;
+		}
+	}
 }

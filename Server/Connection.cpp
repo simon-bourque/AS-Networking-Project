@@ -8,6 +8,13 @@ Connection::Connection() :
 	, m_tcpSocket(nullptr)
 {}
 
+Connection::Connection(const std::string& name, const IPV4Address& address) :
+	m_state(ConnectionState::CONNECTING)
+	, m_tcpSocket(nullptr)
+	, m_uniqueName(name)
+	, m_address(address)
+{}
+
 
 Connection::~Connection() {
 	delete m_tcpSocket;
@@ -20,4 +27,9 @@ void Connection::connect(TCPSocket&& socket, HANDLE ioCompletionPort) {
 	CreateIoCompletionPort(m_tcpSocket->getWinSockHandle(), ioCompletionPort, (ULONG_PTR)this, 0);
 
 	m_tcpSocket->receiveOverlapped(m_overlappedBuffer);
+}
+
+void Connection::shutdown() {
+	m_tcpSocket->shutdown();
+	m_tcpSocket->close();
 }

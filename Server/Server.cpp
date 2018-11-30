@@ -78,7 +78,7 @@ void Server::handleRegisterPacket(const Packet& packet) {
 	RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
 
 	// REGISTER HIM!
-	m_connections[packet.getAddress().getSocketAddressAsString()] = Connection();
+	m_connections[packet.getAddress().getSocketAddressAsString()] = Connection(std::string(msg.name), packet.getAddress());
 
 	RegisteredMessage registeredMsg;
 	registeredMsg.reqNum = msg.reqNum;
@@ -110,6 +110,7 @@ void Server::handleDeregisterPacket(const Packet& packet) {
 		m_serverUDPSocket.send(deregConfPacket);
 		log(LogType::LOG_SEND, deregConfMsg.type, deregConfPacket.getAddress());
 
+		(*it).second.shutdown();
 		m_connections.erase(it);
 	}
 	else
@@ -184,10 +185,13 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 	while (server->m_running) {
 		bool result = GetQueuedCompletionStatus(server->m_tcpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
 		if (!result) {
-			// TODO do something when error
 			DWORD error = GetLastError();
 
 			if (error == ERROR_ABANDONED_WAIT_0) {
+				break;
+			}
+			if (error == ERROR_OPERATION_ABORTED) {
+				// shutdown
 				break;
 			}
 
@@ -231,7 +235,21 @@ void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, P
 	LPOVERLAPPED overlapped = nullptr;
 
 	while (server->m_running) {
-		GetQueuedCompletionStatus(server->m_connectionServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
+		bool result = GetQueuedCompletionStatus(server->m_connectionServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
+		if (!result) {
+			DWORD error = GetLastError();
+
+			if (error == ERROR_ABANDONED_WAIT_0) {
+				continue;
+			}
+			if (error == ERROR_OPERATION_ABORTED) {
+				// connection shutdown
+				continue;
+			}
+
+			std::cout << "[ERROR] " << getWindowsErrorString(error);
+			continue;
+		}
 		if (key == 0) {
 			// Shutdown
 			break;

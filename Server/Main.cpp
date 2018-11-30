@@ -1,4 +1,5 @@
 #include <iostream>
+#include <mutex>
 
 #include "Server.h"
 #include "IPV4Address.h"
@@ -11,21 +12,15 @@
 
 #include <Windows.h>
 
+std::mutex g_lock;
+
 Server* g_Server = nullptr;
 
-BOOL WINAPI closeRoutine(_In_ DWORD ctrlType) {
-	g_Server->shutdown();
-	std::cout << "Step 1" << std::endl;
-	ThreadPool::get()->clean();
-	std::cout << "Step 2" << std::endl;
-	Sleep(INFINITE);
-	ThreadPool::get()->destroy();
-	std::cout << "Step 3" << std::endl;
-	WSA::destroy();
-	std::cout << "Step 4" << std::endl;
-	delete g_Server;
-	std::cout << "Done" << std::endl;
+void init(const std::string& ip);
+void shutdown();
 
+BOOL WINAPI closeRoutine(_In_ DWORD ctrlType) {
+	shutdown();
 	return true;
 }
 
@@ -37,6 +32,20 @@ int main() {
 	std::cin >> ip;
 
 	log("[INFO] Initializing server...");
+	init(ip);
+
+	std::string cmd;
+	do {
+		std::cin >> cmd;
+	} while (cmd != std::string("shutdown"));
+
+	shutdown();
+
+	return 0;
+}
+
+void init(const std::string& ip) {
+	std::lock_guard<std::mutex> lock(g_lock);
 
 	initErrorCodeStringMap();
 	ThreadPool::init();
@@ -46,15 +55,16 @@ int main() {
 	g_Server->startUDPServiceThread();
 	g_Server->startTCPServiceThread();
 	g_Server->startConnectionServiceThread();
+}
 
-	//Console::get()->run();
+void shutdown() {
+	std::lock_guard<std::mutex> lock(g_lock);
 
-	ThreadPool::get()->clean();
-	ThreadPool::destroy();
-	WSA::destroy();
-	delete g_Server;
-
-	std::cout << "Done" << std::endl;
-
-	return 0;
+	if (g_Server != nullptr) {
+		g_Server->shutdown();
+		ThreadPool::get()->clean();
+		ThreadPool::destroy();
+		WSA::destroy();
+		delete g_Server;
+	}
 }
