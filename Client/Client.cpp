@@ -2,22 +2,25 @@
 
 #include "Messages.h"
 #include "Log.h"
+#include "Strings.h"
 
 #include <iostream>
+#include <limits>
 
 static constexpr uint32 NUMBEROFTRIES = 5;
 
 int Client::s_reqNum = 0;
 
-static char constexpr s_mainMenuString[] = "\n0.Register\n1.Deregister\n2.Send Offer\n3.Send Bid\n4.Display Offers\n5.Display Bids\n6.Display Won Items\n7.Disconnect";
-static char constexpr s_separator[] = "=============================================================";
-Client::Client()
+Client::Client(const std::string address, const std::string port)
 	: _state(ClientState::MAIN_MENU)
+	, _serverIpv4(address, port)
+	, _tcpSocket(nullptr)
 	, _registered(false)
 	, _continue(true)
 {
 	std::cout << "What is your unique name for registration?" << std::endl;
 	std::cin >> _uniqueName;
+	std::cin.clear();
 
 	// Startup sequence
 	while (_continue)
@@ -46,7 +49,9 @@ void Client::printMainMenu()
 
 	// Register user choice
 	int chosenOption;
-	std::cin >> chosenOption; // Blocking call
+	std::cin >> chosenOption;
+	std::cin.clear();
+	std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	std::cout << std::endl;
 
 	switch (chosenOption)
@@ -77,7 +82,7 @@ void Client::interpretState()
 	switch(_state)
 	{
 	case ClientState::REGISTER:
-		sendRegister("127.0.0.1", DEFAULT_PORT); break; // HARD CODED ADDRESS
+		sendRegister(); break; // HARD CODED ADDRESS
 	case ClientState::DEREGISTER:
 		sendDeregister(); break;
 	case ClientState::SENDING_OFFER:
@@ -98,12 +103,15 @@ void Client::interpretState()
 	}
 }
 
-void Client::sendRegister(std::string serverAddress, std::string port){
+void Client::startWatching() {
+	_watchThread = std::thread([this] {
 
+	});
+}
+
+void Client::sendRegister(){
 	if (!_registered)
 	{
-		_serverIpv4 = IPV4Address(serverAddress, DEFAULT_PORT);
-
 		//_udpSocket.setTimeout(5000);
 
 		RegisterMessage registerMsg;
@@ -121,55 +129,63 @@ void Client::sendRegister(std::string serverAddress, std::string port){
 			_udpSocket.send(packet);
 			log(LogType::LOG_SEND, MessageType::MSG_REGISTER, _serverIpv4);
 
-			Packet registeredPacket = _udpSocket.receive();
-
-			if (registeredPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_REGISTERED))
+			try
 			{
-				RegisteredMessage registeredMsg = deserializeMessage<RegisteredMessage>(registeredPacket);
+				Packet registeredPacket = _udpSocket.receive();
 
-				if (registeredMsg.reqNum == registerMsg.reqNum)
+				if (registeredPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_REGISTERED))
 				{
-					// We received a registered packet from the server
-					log(LogType::LOG_RECEIVE, MessageType::MSG_REGISTERED, _serverIpv4);
+					RegisteredMessage registeredMsg = deserializeMessage<RegisteredMessage>(registeredPacket);
 
-					_registered = true;
+					if (registeredMsg.reqNum == registerMsg.reqNum)
+					{
+						// We received a registered packet from the server
+						log(LogType::LOG_RECEIVE, MessageType::MSG_REGISTERED, _serverIpv4);
 
-					// We manage to register, try to establish a TCP connection
-					connect();
+						_registered = true;
 
-					break;
+						// We manage to register, try to establish a TCP connection
+						_tcpSocket = new TCPSocket();
+						connect();
+
+						break;
+					}
+					else
+					{
+						// The request numbers do not match? Try again
+					}
+				}
+				else if (registeredPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_UNREGISTERED))
+				{
+					UnregisteredMessage unregMsg = deserializeMessage<UnregisteredMessage>(registeredPacket);
+
+					if (unregMsg.reqNum == registerMsg.reqNum)
+					{
+						// An error occurred on the server while registering. Print reason and try again
+						log(LogType::LOG_RECEIVE, MessageType::MSG_UNREGISTERED, _serverIpv4);
+
+						log(unregMsg.reason);
+					}
+					else
+					{
+						// Request numbers do not match
+					}
 				}
 				else
 				{
-					// The request numbers do not match? Try again
+					// Uuhh this was not meant for us
 				}
 			}
-			else if (registeredPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_UNREGISTERED))
+			catch (int32 error)
 			{
-				UnregisteredMessage unregMsg = deserializeMessage<UnregisteredMessage>(registeredPacket);
-
-				if (unregMsg.reqNum == registerMsg.reqNum)
-				{
-					// An error occurred on the server while registering. Print reason and try again
-					log(LogType::LOG_RECEIVE, MessageType::MSG_UNREGISTERED, _serverIpv4);
-
-					log(unregMsg.reason);
-				}
-				else
-				{
-					// Request numbers do not match
-				}
-			}
-			else
-			{
-				// Uuhh this was not meant for us
+				log(s_serverClosed); // Could not receive UDP packet
 			}
 		}
 	}
 	else
 	{
 		// User already registered
-		log("ERROR: User is already registered");
+		log(s_alreadyReg);
 	}
 
 	// Go back to main menu
@@ -194,50 +210,61 @@ void Client::sendDeregister()
 			_udpSocket.send(packet);
 			log(LogType::LOG_SEND, MessageType::MSG_DEREGISTER, _serverIpv4);
 
-			Packet deregPacket = _udpSocket.receive();
+			try {
+				Packet deregPacket = _udpSocket.receive();
 
-			if (deregPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_DEREG_CONF))
-			{
-				DeregConfMessage deregConfMsg = deserializeMessage<DeregConfMessage>(deregPacket);
-
-				if (deregConfMsg.reqNum == deregMsg.reqNum)
+				if (deregPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_DEREG_CONF))
 				{
-					// We received a confirmation for the deregister everything is gucci
-					log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_CONF, _serverIpv4);
-					_registered = false;
-					break;
+					DeregConfMessage deregConfMsg = deserializeMessage<DeregConfMessage>(deregPacket);
+
+					if (deregConfMsg.reqNum == deregMsg.reqNum)
+					{
+						// We received a confirmation for the deregister everything is gucci
+						log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_CONF, _serverIpv4);
+						_registered = false;
+
+						_tcpSocket->shutdown();
+						delete _tcpSocket;
+						_tcpSocket = nullptr;
+
+						break;
+					}
+					else
+					{
+						// The request numbers do not match? Try again
+					}
+				}
+				else if (deregPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_DEREG_DENIED))
+				{
+					DeregDeniedMessage deregDeniedMsg = deserializeMessage<DeregDeniedMessage>(deregPacket);
+
+					if (deregDeniedMsg.reqNum == deregMsg.reqNum)
+					{
+						// Oof the deregister was denied. Print reason and try again
+						log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_DENIED, _serverIpv4);
+
+						log(deregDeniedMsg.reason);
+					}
+					else
+					{
+						// Request numbers do not match
+					}
 				}
 				else
 				{
-					// The request numbers do not match? Try again
+					// Uuhh this was not meant for us
 				}
 			}
-			else if (deregPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_DEREG_DENIED))
+			catch (int32 error)
 			{
-				DeregDeniedMessage deregDeniedMsg = deserializeMessage<DeregDeniedMessage>(deregPacket);
-
-				if (deregDeniedMsg.reqNum == deregMsg.reqNum)
-				{
-					// Oof the deregister was denied. Print reason and try again
-					log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_DENIED, _serverIpv4);
-
-					log(deregDeniedMsg.reason);
-				}
-				else
-				{
-					// Request numbers do not match
-				}
-			}
-			else
-			{
-				// Uuhh this was not meant for us
+				log(s_serverClosed); // Could not receive UDP packet
 			}
 		}
 	}
 	else
 	{
 		// Not registered
-		log("ERROR: You are not registered");
+		log(s_notReg);
 	}
 
 	// Go back to main menu
@@ -274,53 +301,59 @@ void Client::sendOffer()
 			_udpSocket.send(packet);
 			log(LogType::LOG_SEND, MessageType::MSG_OFFER, _serverIpv4);
 
-			Packet offerPacket = _udpSocket.receive();
-
-			if (offerPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_OFFER_CONF))
+			try
 			{
-				OfferConfMessage offerConfMsg = deserializeMessage<OfferConfMessage>(offerPacket);
+				Packet offerPacket = _udpSocket.receive();
 
-				if (offerConfMsg.reqNum == offerMsg.reqNum)
+				if (offerPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_OFFER_CONF))
 				{
-					// We received a confirmation for the offer, good show!
-					log(LogType::LOG_RECEIVE, MessageType::MSG_OFFER_CONF, _serverIpv4);
+					OfferConfMessage offerConfMsg = deserializeMessage<OfferConfMessage>(offerPacket);
 
-					// Add item to local table
+					if (offerConfMsg.reqNum == offerMsg.reqNum)
+					{
+						// We received a confirmation for the offer, good show!
+						log(LogType::LOG_RECEIVE, MessageType::MSG_OFFER_CONF, _serverIpv4);
 
-					break;
+						// Add item to local table
+
+						break;
+					}
+					else
+					{
+						// Request numbers do not match 
+					}
+				}
+				else if (offerPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_OFFER_DENIED))
+				{
+					OfferDeniedMessage offerDeniedMsg = deserializeMessage<OfferDeniedMessage>(offerPacket);
+
+					if (offerDeniedMsg.reqNum == offerMsg.reqNum)
+					{
+						// Owie the offer was denied. Print reason and try again
+						log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_DENIED, _serverIpv4);
+
+						log(offerDeniedMsg.reason);
+					}
+					else
+					{
+						// Request numbers do not match
+					}
 				}
 				else
 				{
-					// Request numbers do not match 
+					// Uuhh this was not meant for us
 				}
 			}
-			else if (offerPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_OFFER_DENIED))
+			catch (int32 error)
 			{
-				OfferDeniedMessage offerDeniedMsg = deserializeMessage<OfferDeniedMessage>(offerPacket);
-
-				if (offerDeniedMsg.reqNum == offerMsg.reqNum)
-				{
-					// Owie the offer was denied. Print reason and try again
-					log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_DENIED, _serverIpv4);
-
-					log(offerDeniedMsg.reason);
-				}
-				else
-				{
-					// Request numbers do not match
-				}
-			}
-			else
-			{
-				// Uuhh this was not meant for us
+				log(s_serverClosed); // Could not receive UDP packet
 			}
 		}
-
 	}
 	else
 	{
 		// Not registered
-		log("ERROR: You are not registered");
+		log(s_notReg);
 	}
 
 	// Go back to main menu
@@ -329,7 +362,42 @@ void Client::sendOffer()
 
 void Client::sendBid()
 {
-	// CIN the parameters and send the bid to the server
+	// CIN the parameters and send the bid to the 
+	if (_registered)
+	{
+		uint32 itemNum;
+		std::cout << "Enter the item number: " << std::endl;
+		std::cin >> itemNum;
+
+		float amount;
+		std::cout << "What amount do you want to bid?: " << std::endl;
+		std::cin >> amount;
+
+		BidMessage bidMsg;
+		bidMsg.reqNum = s_reqNum++;
+		bidMsg.itemNum = itemNum;
+		bidMsg.amount = amount;
+
+		Packet packet = serializeMessage(bidMsg);
+		packet.setAddress(_serverIpv4);
+
+		// Attempting and waiting on server for offer response
+		for (uint32 i = 0; i < NUMBEROFTRIES; i++)
+		{
+			_udpSocket.send(packet);
+			log(LogType::LOG_SEND, MessageType::MSG_BID, _serverIpv4);
+
+			// Packet offerPacket = _udpSocket.receive(); 
+
+			// Check for new highest?
+		}
+
+	}
+	else
+	{
+		// Not registered
+		log(s_notReg);
+	}
 
 	// Go back to main menu
 	_state = ClientState::MAIN_MENU;
@@ -337,6 +405,7 @@ void Client::sendBid()
 
 void Client::printBids()
 {
+	// Print bids this client has put on items other than their own
 
 	// Go back to main menu
 	_state = ClientState::MAIN_MENU;
@@ -344,6 +413,7 @@ void Client::printBids()
 
 void Client::printOffers()
 {
+	// Print items currently being sold by this client
 
 	// Go back to main menu
 	_state = ClientState::MAIN_MENU;
@@ -351,6 +421,7 @@ void Client::printOffers()
 
 void Client::printWonItems()
 {
+	// Print items that were won by this client
 
 	// Go back to main menu
 	_state = ClientState::MAIN_MENU;
@@ -361,17 +432,20 @@ void Client::disconnect()
 	_continue = false;
 }
 
-void Client::connect() { _tcpSocket.connect(_serverIpv4); }
-void Client::sendPacket(const Packet& packet) { _tcpSocket.send(packet); }
+void Client::connect() { _tcpSocket->connect(_serverIpv4); }
+void Client::sendPacket(const Packet& packet) { _tcpSocket->send(packet); }
 void Client::shutdown()
-{ 
-	_tcpSocket.shutdown();
+{
+	_tcpSocket->shutdown();
 
 	bool receiving = true;
 	Packet receivedPacket;
-	do {
-		receivedPacket = _tcpSocket.receive();
-	} while (receivedPacket.getMessageSize() > 0);
+	while(_tcpSocket->canReceive()) {
+		receivedPacket = _tcpSocket->receive();
+	}
+
+	delete _tcpSocket;
+	_tcpSocket = nullptr;
 }
 
 Client::~Client()

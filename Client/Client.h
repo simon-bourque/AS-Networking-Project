@@ -4,11 +4,14 @@
 #include "TCPSocket.h"
 
 #include <string>
+#include <vector>
+#include <thread>
+#include <mutex>
 
 class Client
 {
 public:
-	Client();
+	Client(const std::string address, const std::string port);
 	~Client();
 
 private:
@@ -24,18 +27,30 @@ private:
 		DISCONNECTING
 	};
 
+	struct Item {
+		std::string description;
+		float amount;
+		uint32 itemNum;
+	};
+
 	// UDP
-	void sendRegister(std::string serverAddress, std::string port);
+	void sendRegister();
 	void sendDeregister();
 	void sendOffer();
 	void sendBid();
 
 	void disconnect();
 
-	void printBids();
-	void printOffers();
-	void printWonItems();
+	void printBids(); // TODO
+	void printOffers(); // TODO
+	void printWonItems(); // TODO
+
 	void printMainMenu();
+
+	// TCP
+	void updateItemsWon() {}; // TODO
+	void updateOffers() {}; // TODO
+	void updateBids() {}; // TODO
 
 	void interpretState();
 
@@ -44,13 +59,23 @@ private:
 	void sendPacket(const Packet& packet);
 	void shutdown();
 
+	// Thread watching TCP Socket and updating local tables
+	void startWatching(); // TODO
+	std::vector<Item> _wonItems;
+	std::vector<Item> _offers;
+	std::vector<Item> _bids;
+	std::thread _watchThread;
+	std::mutex _wonMtx;
+	std::mutex _offersMtx;
+	std::mutex _bidsMtx;
+
 	static int s_reqNum;
 
 	ClientState _state;
 
 	IPV4Address _serverIpv4;
 	UDPSocket _udpSocket;
-	TCPSocket _tcpSocket;
+	TCPSocket* _tcpSocket;
 
 	std::string _uniqueName;
 

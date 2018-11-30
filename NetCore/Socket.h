@@ -1,5 +1,7 @@
 #pragma once
 
+#define NOMINMAX
+
 #include <Winsock2.h>
 #include "Types.h"
 #include "Packet.h"
