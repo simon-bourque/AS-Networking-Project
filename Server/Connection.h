@@ -1,11 +1,13 @@
 #pragma once
 
 #include "ThreadPool.h"
+#include "OverlappedBuffer.h"
+
+#include <Windows.h>
 
 class TCPSocket;
 
 class Connection {
-	friend void tcpConnectionExec(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 public:
 	enum class ConnectionState {
 		CONNECTING,
@@ -15,12 +17,13 @@ private:
 	ConnectionState m_state;
 
 	TCPSocket* m_tcpSocket;
-
-	bool m_listening;
+	OverlappedBuffer m_overlappedBuffer;
 public:
 	Connection();
 	virtual ~Connection();
 
-	void connect(TCPSocket&& socket);
+	void connect(TCPSocket&& socket, HANDLE ioCompletionPort);
+
+	OverlappedBuffer& getOverlappedBuffer() { return m_overlappedBuffer; }
 };
 

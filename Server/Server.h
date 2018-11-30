@@ -17,7 +17,7 @@ class Server {
 private:
 	friend void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 	friend void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
-	friend void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
+	friend void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 
 	std::unordered_map<std::string, Connection> m_connections;
 
@@ -36,12 +36,18 @@ private:
 
 	HANDLE m_udpServiceIOPort;
 	HANDLE m_tcpServiceIOPort;
+	HANDLE m_connectionServiceIOPort;
+
+	void handlePacket(const Packet& packet);
+	void handleRegisterPacket(const Packet& packet);
+	void handleDeregisterPacket(const Packet& packet);
 public:
 	Server(const IPV4Address& bindAddress);
 	virtual ~Server();
 
 	void startUDPServiceThread();
 	void startTCPServiceThread();
+	void startConnectionServiceThread();
 
 	void shutdown();
 };

@@ -13,8 +13,7 @@ std::once_flag flag;
 
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
-
-void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
+void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 
 Server::Server(const IPV4Address& bindAddress) : 
 	m_listeningUDP(false)
@@ -26,6 +25,7 @@ Server::Server(const IPV4Address& bindAddress) :
 {
 	m_udpServiceIOPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 	m_tcpServiceIOPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+	m_connectionServiceIOPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 }
 
 Server::~Server() {}
@@ -56,6 +56,80 @@ void Server::startTCPServiceThread() {
 	ThreadPool::get()->submit(tcpServiceRoutine, this);
 }
 
+void Server::startConnectionServiceThread() {
+	ThreadPool::get()->submit(connectionServiceRoutine, this);
+}
+
+void Server::handlePacket(const Packet& packet) {
+	MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
+	log(LogType::LOG_RECEIVE, type, packet.getAddress());
+
+	switch (type) {
+	case MessageType::MSG_REGISTER:
+		handleRegisterPacket(packet);
+		break;
+	case MessageType::MSG_DEREGISTER:
+		handleDeregisterPacket(packet);
+		break;
+	}
+
+}
+
+void Server::handleRegisterPacket(const Packet& packet) {
+	RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
+
+	// REGISTER HIM!
+	m_connections[packet.getAddress().getSocketAddressAsString()] = Connection();
+
+	RegisteredMessage registeredMsg;
+	registeredMsg.reqNum = msg.reqNum;
+	memcpy(registeredMsg.name, msg.name, NAMELENGTH);
+	memcpy(registeredMsg.iPAddress, msg.iPAddress, IPLENGTH);
+	memcpy(registeredMsg.port, msg.port, PORTLENGTH);
+
+	Packet registeredPacket = serializeMessage(registeredMsg);
+	registeredPacket.setAddress(packet.getAddress());
+
+	m_serverUDPSocket.send(registeredPacket);
+	log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
+}
+
+void Server::handleDeregisterPacket(const Packet& packet) {
+	DeregisterMessage msg = deserializeMessage<DeregisterMessage>(packet);
+
+	// DEREGISTER HIM!
+	auto it = m_connections.find(packet.getAddress().getSocketAddressAsString());
+	if (it != m_connections.end())
+	{
+		// User was found in the registered table, remove him
+		DeregConfMessage deregConfMsg;
+		deregConfMsg.reqNum = msg.reqNum;
+
+		Packet deregConfPacket = serializeMessage(deregConfMsg);
+		deregConfPacket.setAddress(packet.getAddress());
+
+		m_serverUDPSocket.send(deregConfPacket);
+		log(LogType::LOG_SEND, deregConfMsg.type, deregConfPacket.getAddress());
+
+		m_connections.erase(it);
+	}
+	else
+	{
+		// User was not found in the registered table
+		DeregDeniedMessage deregDeniedMsg;
+		deregDeniedMsg.reqNum = msg.reqNum;
+
+		char reason[REASONLENGTH] = "User was not previously registered";
+		memcpy(deregDeniedMsg.reason, reason, REASONLENGTH);
+
+		Packet deregDeniedPacket = serializeMessage(deregDeniedMsg);
+		deregDeniedPacket.setAddress(packet.getAddress());
+
+		m_serverUDPSocket.send(deregDeniedPacket);
+		log(LogType::LOG_SEND, deregDeniedMsg.type, deregDeniedPacket.getAddress());
+	}
+}
+
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
 	UNREFERENCED_PARAMETER(work);
 	CallbackMayRunLong(instance);
@@ -75,70 +149,7 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 		Packet packet(buffer.getData(), numBytes);
 		packet.setAddress(buffer.getAddress());
 
-		MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
-		log(LogType::LOG_RECEIVE, type, packet.getAddress());
-
-		switch (type) {
-			case MessageType::MSG_REGISTER:
-			{
-				RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
-
-				// REGISTER HIM!
-				server->m_connections[packet.getAddress().getSocketAddressAsString()] = Connection();
-
-				RegisteredMessage registeredMsg;
-				registeredMsg.reqNum = msg.reqNum;
-				memcpy(registeredMsg.name, msg.name, NAMELENGTH);
-				memcpy(registeredMsg.iPAddress, msg.iPAddress, IPLENGTH);
-				memcpy(registeredMsg.port, msg.port, PORTLENGTH);
-
-				Packet registeredPacket = serializeMessage(registeredMsg);
-				registeredPacket.setAddress(packet.getAddress());
-
-				server->m_serverUDPSocket.send(registeredPacket);
-				log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
-
-				break;
-			}
-			case MessageType::MSG_DEREGISTER:
-			{
-				DeregisterMessage msg = deserializeMessage<DeregisterMessage>(packet);
-
-				// DEREGISTER HIM!
-				auto it = server->m_connections.find(packet.getAddress().getSocketAddressAsString());
-				if (it != server->m_connections.end())
-				{
-					// User was found in the registered table, remove him
-					DeregConfMessage deregConfMsg;
-					deregConfMsg.reqNum = msg.reqNum;
-
-					Packet deregConfPacket = serializeMessage(deregConfMsg);
-					deregConfPacket.setAddress(packet.getAddress());
-
-					server->m_serverUDPSocket.send(deregConfPacket);
-					log(LogType::LOG_SEND, deregConfMsg.type, deregConfPacket.getAddress());
-
-					server->m_connections.erase(it);
-				}
-				else
-				{
-					// User was not found in the registered table
-					DeregDeniedMessage deregDeniedMsg;
-					deregDeniedMsg.reqNum = msg.reqNum;
-
-					char reason[REASONLENGTH] = "User was not previously registered";
-					memcpy(deregDeniedMsg.reason, reason, REASONLENGTH);
-
-					Packet deregDeniedPacket = serializeMessage(deregDeniedMsg);
-					deregDeniedPacket.setAddress(packet.getAddress());
-
-					server->m_serverUDPSocket.send(deregDeniedPacket);
-					log(LogType::LOG_SEND, deregDeniedMsg.type, deregDeniedPacket.getAddress());
-				}
-
-				break;
-			}
-		}
+		server->handlePacket(packet);
 
 		server->m_serverUDPSocket.receiveOverlapped(buffer);
 	}
@@ -159,26 +170,14 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 	while (server->m_running) {
 		bool result = GetQueuedCompletionStatus(server->m_tcpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
 		if (!result) {
+			// TODO do something when error
 			DWORD error = GetLastError();
 
 			if (error == ERROR_ABANDONED_WAIT_0) {
-				std::cout << "[ERROR] " << "uh oh" << std::endl;
 				continue;
 			}
 
-			LPVOID message = nullptr;
-			FormatMessage(
-				FORMAT_MESSAGE_ALLOCATE_BUFFER |
-				FORMAT_MESSAGE_FROM_SYSTEM |
-				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL,
-				error,
-				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-				(LPTSTR)&message,
-				0, NULL);
-			std::cout << "[ERROR] " << std::string((char*)message);
-			LocalFree(message);
-			
+			std::cout << "[ERROR] " << getWindowsErrorString(error);
 			continue;
 		}
 		std::cout << "Accepted connection..." << std::endl;
@@ -194,14 +193,14 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 		std::cout << peerAddress.getSocketAddressAsString() << std::endl;
 		auto connectionIter = server->m_connections.find(peerAddress.getSocketAddressAsString());
 		if (connectionIter != server->m_connections.end()) {
-			connectionIter->second.connect(std::move(acceptedSocket));
+			connectionIter->second.connect(std::move(acceptedSocket), server->m_connectionServiceIOPort);
 		}
 
 		acceptedSocket = server->m_serverTCPSocket.acceptOverlapped(server->m_serverTCPBuffer);
 	}
 }
 
-void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
+void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
 	UNREFERENCED_PARAMETER(work);
 	CallbackMayRunLong(instance);
 
@@ -212,8 +211,17 @@ void workerThreadRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WO
 	LPOVERLAPPED overlapped = nullptr;
 
 	while (server->m_running) {
-		GetQueuedCompletionStatus(server->m_udpServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
+		GetQueuedCompletionStatus(server->m_connectionServiceIOPort, &numBytes, &key, &overlapped, INFINITE);
 
-		// Find connection from key
+		Connection* connection = reinterpret_cast<Connection*>(key);
+
+		OverlappedBuffer& buffer = connection->getOverlappedBuffer();
+		Packet packet(buffer.getData(), numBytes);
+		
+		// Get this from Connection
+		//packet.setAddress(buffer.getAddress());
+
+		// Handle packet
+		std::cout << "PIIINIGNIGNGINGIGNI" << std::endl;
 	}
 }

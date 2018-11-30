@@ -20,8 +20,7 @@ TCPSocket& TCPSocket::operator=(TCPSocket&& sock) {
 void TCPSocket::send(const Packet& packet) {
 	if (::send(_winSocket, reinterpret_cast<const char*>(packet.getMessageData()), packet.getMessageSize(), 0) == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
-		throw std::runtime_error("Failed to send packet: " + getWSAErrorString(errorCode));
-
+		throw errorCode;
 	}
 }
 
@@ -30,11 +29,14 @@ Packet TCPSocket::receive() {
 
 	int32 numBytesreceived = recv(_winSocket, reinterpret_cast<char*>(buffer), Packet::PACKET_SIZE, 0);
 	if (numBytesreceived == 0) {
-		throw std::runtime_error("Connection was closed");
+		delete[] buffer;
+		// Connection was shutdown
+		throw 0;
 	}
 	else if (numBytesreceived == SOCKET_ERROR) {
+		delete[] buffer;
 		int32 errorCode = WSAGetLastError();
-		throw std::runtime_error("Received has failed: " + getWSAErrorString(errorCode));
+		throw errorCode;
 	}
 
 	Packet packet(buffer, numBytesreceived);
@@ -46,7 +48,7 @@ Packet TCPSocket::receive() {
 void TCPSocket::listen() {
 	if (::listen(_winSocket, SOMAXCONN) == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
-		throw std::runtime_error("Failed to listen to socket: " + getWSAErrorString(errorCode));
+		throw errorCode;
 	}
 }
 
@@ -54,7 +56,7 @@ TCPSocket TCPSocket::accept() {
 	SOCKET clientSocket = ::accept(_winSocket, NULL, NULL);
 	if (clientSocket == INVALID_SOCKET) {
 		int32 errorCode = WSAGetLastError();
-		throw std::runtime_error("Failed to accept socket: " + getWSAErrorString(errorCode));
+		throw errorCode;
 	}
 	return { clientSocket };
 }
@@ -78,11 +80,8 @@ TCPSocket TCPSocket::acceptOverlapped(OverlappedBuffer& overlappedBuffer) {
 	
 	if (!result) {
 		int32 error = WSAGetLastError();
-		if (error == ERROR_IO_PENDING) {
-			//std::cout << "IO Pending" << std::endl;
-		}
-		else {
-			std::cout << getWSAErrorString(error) << std::endl;
+		if (error != ERROR_IO_PENDING) {
+			throw error;
 		}
 	}
 
@@ -92,14 +91,14 @@ TCPSocket TCPSocket::acceptOverlapped(OverlappedBuffer& overlappedBuffer) {
 void TCPSocket::connect(const IPV4Address& address) {
 	if (::connect(_winSocket, address.getSocketAddress(), address.getSocketAddressSize()) == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
-		throw std::runtime_error ("Failed to connect to socket: " + getWSAErrorString(errorCode));
+		throw errorCode;
 	}
 }
 
 void TCPSocket::shutdown() {
 	if (::shutdown(_winSocket, SD_SEND) == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
-		throw std::runtime_error("Failed to shutdown socket: " + getWSAErrorString(errorCode));
+		throw errorCode;
 	}
 }
 
@@ -109,7 +108,7 @@ IPV4Address TCPSocket::getPeerAddress() const {
 	int32 result = getpeername(_winSocket, reinterpret_cast<sockaddr*>(&sockAddress), &sockAddressSize);
 	if (result == SOCKET_ERROR) {
 		int32 error = WSAGetLastError();
-		std::cout << getWSAErrorString(error) << std::endl;
+		throw error;
 	}
 
 	return IPV4Address(sockAddress);

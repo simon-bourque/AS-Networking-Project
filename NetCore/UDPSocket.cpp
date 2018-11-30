@@ -15,8 +15,7 @@ void UDPSocket::send(const Packet& packet) {
 	int32 numBytesSent = sendto(_winSocket, reinterpret_cast<const char*>(packet.getMessageData()), packet.getMessageSize(), 0, sockAddr, sockAddrSize);
 	if (numBytesSent == SOCKET_ERROR) {
 		int32 errorCode = WSAGetLastError();
-		std::cout << getWSAErrorString(errorCode) << std::endl;
-		throw std::runtime_error("Error receiving packet from socket: " + getWSAErrorString(errorCode));
+		throw errorCode;
 	}
 }
 
@@ -26,10 +25,15 @@ Packet UDPSocket::receive() {
 
 	uint8* buffer = new uint8[Packet::PACKET_SIZE];
 	int32 numBytesreceived = recvfrom(_winSocket, reinterpret_cast<char*>(buffer), Packet::PACKET_SIZE, 0, reinterpret_cast<sockaddr*>(&senderAddress), &senderAddressSize);
-	if (numBytesreceived == SOCKET_ERROR) {
+	if (numBytesreceived == 0) {
+		delete[] buffer;
+		// Socket shutdown gracefully
+		throw 0;
+	}
+	else if (numBytesreceived == SOCKET_ERROR) {
+		delete[] buffer;
 		int32 errorCode = WSAGetLastError();
-		std::cout << getWSAErrorString(errorCode) << std::endl;
-		throw std::runtime_error("Error receiving packet from socket: " + getWSAErrorString(errorCode));
+		throw errorCode;
 	}
 
 	Packet packet(buffer, numBytesreceived);
@@ -42,7 +46,7 @@ Packet UDPSocket::receive() {
 
 
 void UDPSocket::receiveOverlapped(OverlappedBuffer& overlappedBuffer) {
-	WSARecvFrom(
+	int32 status = WSARecvFrom(
 		_winSocket,
 		&overlappedBuffer.m_buffer,
 		1,
@@ -53,4 +57,10 @@ void UDPSocket::receiveOverlapped(OverlappedBuffer& overlappedBuffer) {
 		&overlappedBuffer.m_overlapped,
 		NULL
 	);
+	if (status == SOCKET_ERROR) {
+		int32 error = WSAGetLastError();
+		if (error != WSA_IO_PENDING) {
+			throw error;
+		}
+	}
 }
