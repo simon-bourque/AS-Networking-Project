@@ -5,6 +5,9 @@
 
 typedef VOID (CALLBACK *ThreadExecutionFunc)(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 
+typedef VOID (CALLBACK *TimerCallback)(PTP_CALLBACK_INSTANCE instance, PVOID context, PTP_TIMER timer);
+
+
 class ThreadPool {
 private:
 	static ThreadPool* s_instance;
@@ -18,6 +21,7 @@ public:
 	virtual ~ThreadPool();
 
 	PTP_WORK submit(ThreadExecutionFunc func, void* ptr);
+	PTP_TIMER submitTimer(TimerCallback func, void* ptr);
 	void clean();
 
 	static void init() { s_instance = new ThreadPool(); }

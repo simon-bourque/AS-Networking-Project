@@ -6,12 +6,6 @@
 
 ThreadPool* ThreadPool::s_instance = nullptr;
 
-VOID CALLBACK MyWorkCallback(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
-	UNREFERENCED_PARAMETER(instance);
-	UNREFERENCED_PARAMETER(work);
-
-}
-
 ThreadPool::ThreadPool() {
 	m_pool = CreateThreadpool(NULL);
 	SetThreadpoolThreadMinimum(m_pool, 300);
@@ -38,6 +32,19 @@ PTP_WORK ThreadPool::submit(ThreadExecutionFunc func, void* ptr) {
 	SubmitThreadpoolWork(workObject);
 
 	return workObject;
+}
+
+PTP_TIMER ThreadPool::submitTimer(TimerCallback func, void* ptr) {
+	PTP_TIMER timerObject = CreateThreadpoolTimer(func, ptr, &m_callbackEnvironment);
+
+	FILETIME fileTime;
+	GetSystemTimeAsFileTime(&fileTime);
+	ULARGE_INTEGER* time = reinterpret_cast<ULARGE_INTEGER*>(&fileTime);
+	time->QuadPart += 3000000000ull;
+
+	SetThreadpoolTimer(timerObject, &fileTime, 0, 0);
+
+	return timerObject;
 }
 
 void ThreadPool::clean() {

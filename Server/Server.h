@@ -38,6 +38,9 @@ private:
 	void handlePacket(const Packet& packet);
 	void handleRegisterPacket(const Packet& packet);
 	void handleDeregisterPacket(const Packet& packet);
+	void handleOfferPacket(const Packet& packet);
+
+	void startBid();
 public:
 	Server(const IPV4Address& bindAddress);
 	virtual ~Server();

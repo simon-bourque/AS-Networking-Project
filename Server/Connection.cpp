@@ -6,6 +6,7 @@
 Connection::Connection() :
 	m_state(ConnectionState::DISCONNECTED)
 	, m_tcpSocket(nullptr)
+	, m_offerReqNumber(0)
 {}
 
 Connection::Connection(const std::string& name, const IPV4Address& address) :
@@ -13,6 +14,7 @@ Connection::Connection(const std::string& name, const IPV4Address& address) :
 	, m_tcpSocket(nullptr)
 	, m_uniqueName(name)
 	, m_address(address)
+	, m_offerReqNumber(0)
 {}
 
 

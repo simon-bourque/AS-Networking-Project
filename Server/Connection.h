@@ -23,6 +23,8 @@ private:
 
 	TCPSocket* m_tcpSocket;
 	OverlappedBuffer m_overlappedBuffer;
+
+	uint32 m_offerReqNumber;
 public:
 	Connection();
 	Connection(const std::string& name, const IPV4Address& address);
@@ -33,5 +35,7 @@ public:
 
 	OverlappedBuffer& getOverlappedBuffer() { return m_overlappedBuffer; }
 	const IPV4Address& getAddress() const { return m_address; }
+
+	bool isConnected() const { return m_state == ConnectionState::CONNECTED; }
 };
 

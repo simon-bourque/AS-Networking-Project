@@ -4,6 +4,7 @@
 #include "UDPSocket.h"
 #include "TCPSocket.h"
 #include "Error.h"
+#include "Item.h"
 
 #include <Mswsock.h>
 #include <iostream>
@@ -59,6 +60,13 @@ void Server::startConnectionServiceThread() {
 	ThreadPool::get()->submit(connectionServiceRoutine, this);
 }
 
+void Server::startBid() {
+	ThreadPool::get()->submitTimer([](PTP_CALLBACK_INSTANCE instance, PVOID context, PTP_TIMER timer) {
+		std::cout << "TIMER DONE!" << std::endl;
+		CloseThreadpoolTimer(timer);
+	}, nullptr);
+}
+
 void Server::handlePacket(const Packet& packet) {
 	MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
 	log(LogType::LOG_RECEIVE, type, packet.getAddress());
@@ -70,6 +78,8 @@ void Server::handlePacket(const Packet& packet) {
 	case MessageType::MSG_DEREGISTER:
 		handleDeregisterPacket(packet);
 		break;
+	case MessageType::MSG_OFFER:
+		handleOfferPacket(packet);
 	}
 
 }
@@ -134,6 +144,48 @@ void Server::handleDeregisterPacket(const Packet& packet) {
 
 		m_serverUDPSocket.send(deregDeniedPacket);
 		log(LogType::LOG_SEND, deregDeniedMsg.type, deregDeniedPacket.getAddress());
+	}
+}
+
+void Server::handleOfferPacket(const Packet& packet) {
+	OfferMessage msg = deserializeMessage<OfferMessage>(packet);
+	
+	auto iter = m_connections.find(packet.getAddress().getSocketAddressAsString());
+	const bool connected = (iter != m_connections.end()) ? (*iter).second.isConnected() : false;
+
+	if (connected) {
+		Connection& connection = (*iter).second;
+
+		// TODO start new bid
+		// TODO check if item already offered using reqID
+		Item item(std::string(msg.description), msg.minimum);
+
+		// Send confirmation
+		OfferConfMessage offerConfMsg;
+		offerConfMsg.reqNum = msg.reqNum;
+		memcpy(offerConfMsg.description, msg.description, DESCLENGTH);
+		offerConfMsg.minimum = msg.minimum;
+		offerConfMsg.itemNum = item.getItemID();
+
+		Packet offerConfPacket = serializeMessage(offerConfMsg);
+		offerConfPacket.setAddress(packet.getAddress());
+
+		m_serverUDPSocket.send(offerConfPacket);
+		log(LogType::LOG_SEND, offerConfMsg.type, offerConfPacket.getAddress());
+	}
+	else {
+		// Client not registered
+		OfferDeniedMessage offerDeniedMsg;
+		offerDeniedMsg.reqNum = msg.reqNum;
+		
+		char reason[REASONLENGTH] = "User was not previously registered";
+		memcpy(offerDeniedMsg.reason, reason, REASONLENGTH);
+
+		Packet offerDeniedPacket = serializeMessage(offerDeniedMsg);
+		offerDeniedPacket.setAddress(packet.getAddress());
+
+		m_serverUDPSocket.send(offerDeniedPacket);
+		log(LogType::LOG_SEND, offerDeniedMsg.type, offerDeniedPacket.getAddress());
 	}
 }
 

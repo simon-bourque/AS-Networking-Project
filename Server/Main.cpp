@@ -62,7 +62,7 @@ void shutdown() {
 
 	if (g_Server != nullptr) {
 		g_Server->shutdown();
-		ThreadPool::get()->clean();
+		//ThreadPool::get()->clean();
 		ThreadPool::destroy();
 		WSA::destroy();
 		delete g_Server;
