@@ -138,25 +138,15 @@ void Client::addUDPAck(uint32 reqNum) {
 	_udpAck.insert(reqNum);
 }
 
-void Client::addTCPAck(uint32 reqNum) {
-	std::lock_guard<std::mutex> lock(_tcpAckMtx);
-	_tcpAck.insert(reqNum);
-}
-
 void Client::removeUDPAck(uint32 reqNum) {
 	std::lock_guard<std::mutex> lock(_udpAckMtx);
 	_udpAck.erase(reqNum);
 }
 
-void Client::removeTCPAck(uint32 reqNum) {
-	std::lock_guard<std::mutex> lock(_tcpAckMtx);
-	_tcpAck.erase(reqNum);
-}
-
 void Client::startUDPWatching() {
 	_udpWatch = std::thread([this] {
-		while (_registered) {
-			if (_udpAck.size() > 0) {
+		while (_continue && _registered) {
+			if (_udpSocket.canReceive() && _udpAck.size() > 0) {
 				try {
 					Packet receivedPacket = _udpSocket.receive(); // Blocking call
 					MessageType messageType = static_cast<MessageType>(receivedPacket.getMessageData()[0]);
@@ -270,7 +260,7 @@ void Client::startUDPWatching() {
 					}
 				}
 				catch (int32 error) {
-					log(s_serverClosed); // Could not receive UDP packet
+					log(s_serverErrorUDP); // Could not receive UDP packet
 				}
 			}
 		}
@@ -279,69 +269,74 @@ void Client::startUDPWatching() {
 
 void Client::startTCPWatching() {
 	_tcpWatch = std::thread([this] {
-		while (_registered) {
+		while (_continue && _registered) {
 			if (_tcpSocket == nullptr) break; // TCP Connection was closed, leave thread
+			else if (_tcpSocket->canReceive()) {
+				try {
+					Packet receivedPacket = _tcpSocket->receive(); // Blocking call
+					MessageType messageType = static_cast<MessageType>(receivedPacket.getMessageData()[0]);
 
-			try {
-				Packet receivedPacket = _tcpSocket->receive(); // Blocking call
-				MessageType messageType = static_cast<MessageType>(receivedPacket.getMessageData()[0]);
+					switch (messageType)
+					{
+					case MessageType::MSG_HIGHEST:
+					{
+						// One of the client's bids was surpassed
+						HighestMessage highestMsg = deserializeMessage<HighestMessage>(receivedPacket);
 
-				switch (messageType)
+						log(LogType::LOG_RECEIVE, highestMsg.type, _serverIpv4);
+
+						uint32 itemNum = highestMsg.itemNum;
+						float32 newAmount = highestMsg.amount;
+
+						log(s_highest);
+						log("Item #: %u", itemNum);
+						log("New amount: %.2f", newAmount);
+
+						updateBids(itemNum, { "", newAmount });
+						updateAH(itemNum, { "", newAmount });
+
+						break;
+					}
+					case MessageType::MSG_WIN:
+					{
+						// This client has won an item!
+						WinMessage winMsg = deserializeMessage<WinMessage>(receivedPacket);
+
+						log(LogType::LOG_RECEIVE, winMsg.type, _serverIpv4);
+
+						std::lock_guard<std::mutex> lock(_wonMtx);
+						// Fetch description from auction table?
+						_wonItems[winMsg.itemNum] = { "", winMsg.amount };
+
+						break;
+					}
+					case MessageType::MSG_BID_OVER:
+					{
+						break;
+					}
+					case MessageType::MSG_SOLD_TO:
+					{
+						break;
+					}
+					case MessageType::MSG_NOT_SOLD:
+					{
+						break;
+					}
+					default:;
+					}
+				}
+				catch (int32 error)
 				{
-				case MessageType::MSG_HIGHEST:
-				{
-					// One of the client's bids was surpassed
-					HighestMessage highestMsg = deserializeMessage<HighestMessage>(receivedPacket);
-
-					log(LogType::LOG_RECEIVE, highestMsg.type, _serverIpv4);
-
-					uint32 itemNum = highestMsg.itemNum;
-					float32 newAmount = highestMsg.amount;
-
-					log(s_highest);
-					log("Item #: %u", itemNum);
-					log("New amount: %.2f", newAmount);
-
-					updateBids(itemNum, { "", newAmount });
-					updateAH(itemNum, { "", newAmount });
-
-					break;
+					if (error == 0) {
+						//TCP Socket was gracefully closed
+						log(s_tcpClosed);
+					}
+					else if (error == WSAECONNRESET) {
+						log(s_tcpForceClosed);
+						_registered = false;
+					}
+					else log(s_serverErrorTCP); // Could not receive TCP packet
 				}
-				case MessageType::MSG_WIN:
-				{
-					// This client has won an item!
-					WinMessage winMsg = deserializeMessage<WinMessage>(receivedPacket);
-
-					log(LogType::LOG_RECEIVE, winMsg.type, _serverIpv4);
-
-					std::lock_guard<std::mutex> lock(_wonMtx);
-					// Fetch description from auction table?
-					_wonItems[winMsg.itemNum] = { "", winMsg.amount };
-
-					break;
-				}
-				case MessageType::MSG_BID_OVER:
-				{
-					break;
-				}
-				case MessageType::MSG_SOLD_TO:
-				{
-					break;
-				}
-				case MessageType::MSG_NOT_SOLD:
-				{
-					break;
-				}
-				default:;
-				}
-			}
-			catch (int32 error)
-			{
-				if (error == 0) {
-					//TCP Socket was gracefully closed
-					log(s_tcpClosed);
-				}
-				else log(s_tcpError); // Could not receive TCP packet
 			}
 		}
 	});
@@ -372,7 +367,7 @@ void Client::sendRegister() {
 			addUDPAck(registerMsg.reqNum);
 			log(LogType::LOG_SEND, MessageType::MSG_REGISTER, _serverIpv4);
 
-			startUDPWatching();
+			if(!_udpWatch.joinable()) startUDPWatching();
 
 			wait();
 
@@ -417,6 +412,7 @@ void Client::sendDeregister()
 
 			// Checking ACK receipt
 			if (_udpAck.find(deregMsg.reqNum) == _udpAck.end()) {
+				// Ending watch threads because no longer registered
 				_udpWatch.join();
 				_tcpWatch.join();
 				break;
@@ -562,16 +558,12 @@ void Client::shutdown()
 {
 	if (_tcpSocket != nullptr) {
 		_tcpSocket->shutdown();
-
-		bool receiving = true;
-		Packet receivedPacket;
-		while(_tcpSocket->canReceive()) {
-			receivedPacket = _tcpSocket->receive();
-		}
-
 		delete _tcpSocket;
 		_tcpSocket = nullptr;
 	}
+
+	if(_udpWatch.joinable()) _udpWatch.join();
+	if(_tcpWatch.joinable()) _tcpWatch.join();
 }
 
 Client::~Client()

@@ -34,9 +34,7 @@ private:
 	};
 
 	void addUDPAck(uint32 reqNum);
-	void addTCPAck(uint32 reqNum);
 	void removeUDPAck(uint32 reqNum);
-	void removeTCPAck(uint32 reqNum);
 
 	// UDP
 	void sendRegister();

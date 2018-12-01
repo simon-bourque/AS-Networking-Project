@@ -6,10 +6,12 @@ static char constexpr s_separator[] = "=========================================
 // Errors
 static char constexpr s_notReg[] = "[ERROR] User not registered";
 static char constexpr s_alreadyReg[] = "[ERROR] User already registered";
-static char constexpr s_serverClosed[] = "[ERROR] Server error";
+static char constexpr s_serverErrorUDP[] = "[ERROR] Server error during UDP watch";
+static char constexpr s_serverErrorTCP[] = "[ERROR] Server error during TCP watch";
 static char constexpr s_tcpError[] = "[ERROR] An error occured while receiving a TCP packet";
 static char constexpr s_wrongAck[]= "[ERROR] Received acknowledgement of wrong request";
 static char constexpr s_notAck[] = "[ERROR] Sent packet was not acknowledged";
+static char constexpr s_tcpForceClosed[] = "\n[ERROR] Remote connection was forcibly closed. You are now unregistered.";
 
 // Info
 static char constexpr s_tcpClosed[] = "[INFO] TCP Connection was gracefully closed.";
