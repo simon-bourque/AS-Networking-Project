@@ -6,9 +6,14 @@
 int main() {
 	WSA::init();
 
+	std::string ip;
+	std::cout << "Server IP: " << std::endl;
+	std::cin >> ip;
+	std::cout << std::endl;
+
 	// Creating client
 	{
-		Client client("127.0.0.1", DEFAULT_PORT);
+		Client client(ip, DEFAULT_PORT);
 	}
 
 	WSA::destroy();

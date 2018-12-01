@@ -6,10 +6,11 @@
 
 #include <iostream>
 #include <limits>
+#include <chrono>
 
 static constexpr uint32 NUMBEROFTRIES = 5;
 
-int Client::s_reqNum = 0;
+int Client::s_reqNum = 1;
 
 Client::Client(const std::string address, const std::string port)
 	: _state(ClientState::MAIN_MENU)
@@ -22,7 +23,7 @@ Client::Client(const std::string address, const std::string port)
 	std::cin >> _uniqueName;
 	std::cin.clear();
 
-	// Startup sequence
+	// Startup sequence 
 	while (_continue)
 	{
 		interpretState();
@@ -103,17 +104,256 @@ void Client::interpretState()
 	}
 }
 
-void Client::startWatching() {
-	_watchThread = std::thread([this] {
+void Client::updateAH(uint32 itemNum, Item newItem) {
+	std::lock_guard<std::mutex> lock(_ahMtx);
 
+	// Updating auction house table with new amount
+	auto it = _auctionHouse.find(itemNum);
+	if (it != _auctionHouse.end()) {
+		_auctionHouse[itemNum].amount = newItem.amount;
+	}
+	else {
+		// This client has never seen this item, add new item to the table without description
+		_auctionHouse[itemNum] = { "", newItem.amount };
+	}
+}
+
+void Client::updateBids(uint32 itemNum, Item newItem) {
+	std::lock_guard<std::mutex> lock(_bidsMtx);
+
+	// Removing previous bid from bid table
+	auto it = _bids.find(itemNum);
+	if (it != _bids.end()) {
+		// Previous bid was found, remove it
+		_bids.erase(it);
+	}
+	else {
+		// Previous bid was not found, wtf happened
+		log(s_bidNotFound);
+	}
+}
+
+void Client::addUDPAck(uint32 reqNum) {
+	std::lock_guard<std::mutex> lock(_udpAckMtx);
+	_udpAck.insert(reqNum);
+}
+
+void Client::addTCPAck(uint32 reqNum) {
+	std::lock_guard<std::mutex> lock(_tcpAckMtx);
+	_tcpAck.insert(reqNum);
+}
+
+void Client::removeUDPAck(uint32 reqNum) {
+	std::lock_guard<std::mutex> lock(_udpAckMtx);
+	_udpAck.erase(reqNum);
+}
+
+void Client::removeTCPAck(uint32 reqNum) {
+	std::lock_guard<std::mutex> lock(_tcpAckMtx);
+	_tcpAck.erase(reqNum);
+}
+
+void Client::startUDPWatching() {
+	_udpWatch = std::thread([this] {
+		while (_registered) {
+			if (_udpAck.size() > 0) {
+				try {
+					Packet receivedPacket = _udpSocket.receive(); // Blocking call
+					MessageType messageType = static_cast<MessageType>(receivedPacket.getMessageData()[0]);
+
+					switch (messageType)
+					{
+					case MessageType::MSG_REGISTERED:
+					{
+						RegisteredMessage registeredMsg = deserializeMessage<RegisteredMessage>(receivedPacket);
+
+						if (_udpAck.find(registeredMsg.reqNum) != _udpAck.end())
+						{
+							// We received a registered packet from the server
+							log(LogType::LOG_RECEIVE, registeredMsg.type, _serverIpv4);
+
+							// We manage to register, try to establish a TCP connection
+							_tcpSocket = new TCPSocket();
+							connect();
+
+							removeUDPAck(registeredMsg.reqNum);
+
+							startTCPWatching();
+						}
+						else log(s_wrongAck);
+						break;
+					}
+					case MessageType::MSG_UNREGISTERED:
+					{
+						UnregisteredMessage unregMsg = deserializeMessage<UnregisteredMessage>(receivedPacket);
+
+						if (_udpAck.find(unregMsg.reqNum) != _udpAck.end())
+						{
+							// An error occurred on the server while registering. Print reason and try again
+							log(LogType::LOG_RECEIVE, unregMsg.type, _serverIpv4);
+
+							log(unregMsg.reason);
+
+							removeUDPAck(unregMsg.reqNum);
+						}
+						else log(s_wrongAck);
+						break;
+					}
+					case MessageType::MSG_DEREG_CONF:
+					{
+						DeregConfMessage deregConfMsg = deserializeMessage<DeregConfMessage>(receivedPacket);
+
+						if (_udpAck.find(deregConfMsg.reqNum) != _udpAck.end())
+						{
+							// We received a confirmation for the deregister everything is gucci
+							log(LogType::LOG_RECEIVE, deregConfMsg.type, _serverIpv4);
+							_registered = false;
+
+							_tcpSocket->shutdown();
+							delete _tcpSocket;
+							_tcpSocket = nullptr;
+
+							removeUDPAck(deregConfMsg.reqNum);
+						}
+						else log(s_wrongAck);
+						break;
+					}
+					case MessageType::MSG_DEREG_DENIED:
+					{
+						DeregDeniedMessage deregDeniedMsg = deserializeMessage<DeregDeniedMessage>(receivedPacket);
+
+						if (_udpAck.find(deregDeniedMsg.reqNum) != _udpAck.end())
+						{
+							// Oof the deregister was denied. Print reason and try again
+							log(LogType::LOG_RECEIVE, deregDeniedMsg.type, _serverIpv4);
+							log("[ERROR] %s", deregDeniedMsg.reason);
+
+							removeUDPAck(deregDeniedMsg.reqNum);
+						}
+						else log(s_wrongAck);
+						break;
+					}
+					case MessageType::MSG_OFFER_CONF:
+					{
+						OfferConfMessage offerConfMsg = deserializeMessage<OfferConfMessage>(receivedPacket);
+
+						if (_udpAck.find(offerConfMsg.reqNum) != _udpAck.end())
+						{
+							// We received a confirmation for the offer, good show!
+							log(LogType::LOG_RECEIVE, offerConfMsg.type, _serverIpv4);
+
+							// TODO Add item to local table
+
+							removeUDPAck(offerConfMsg.reqNum);
+						}
+						else log(s_wrongAck);
+						break;
+					}
+					case MessageType::MSG_OFFER_DENIED:
+					{
+						OfferDeniedMessage offerDeniedMsg = deserializeMessage<OfferDeniedMessage>(receivedPacket);
+
+						if (_udpAck.find(offerDeniedMsg.reqNum) != _udpAck.end())
+						{
+							// Owie the offer was denied. Print reason and try again
+							log(LogType::LOG_RECEIVE, offerDeniedMsg.type, _serverIpv4);
+
+							log(offerDeniedMsg.reason);
+
+							removeUDPAck(offerDeniedMsg.reqNum);
+						}
+						else log(s_wrongAck);
+						break;
+					}
+
+					default:;
+					}
+				}
+				catch (int32 error) {
+					log(s_serverClosed); // Could not receive UDP packet
+				}
+			}
+		}
 	});
 }
 
-void Client::sendRegister(){
+void Client::startTCPWatching() {
+	_tcpWatch = std::thread([this] {
+		while (_registered) {
+			if (_tcpSocket == nullptr) break; // TCP Connection was closed, leave thread
+
+			try {
+				Packet receivedPacket = _tcpSocket->receive(); // Blocking call
+				MessageType messageType = static_cast<MessageType>(receivedPacket.getMessageData()[0]);
+
+				switch (messageType)
+				{
+				case MessageType::MSG_HIGHEST:
+				{
+					// One of the client's bids was surpassed
+					HighestMessage highestMsg = deserializeMessage<HighestMessage>(receivedPacket);
+
+					log(LogType::LOG_RECEIVE, highestMsg.type, _serverIpv4);
+
+					uint32 itemNum = highestMsg.itemNum;
+					float32 newAmount = highestMsg.amount;
+
+					log(s_highest);
+					log("Item #: %u", itemNum);
+					log("New amount: %.2f", newAmount);
+
+					updateBids(itemNum, { "", newAmount });
+					updateAH(itemNum, { "", newAmount });
+
+					break;
+				}
+				case MessageType::MSG_WIN:
+				{
+					// This client has won an item!
+					WinMessage winMsg = deserializeMessage<WinMessage>(receivedPacket);
+
+					log(LogType::LOG_RECEIVE, winMsg.type, _serverIpv4);
+
+					std::lock_guard<std::mutex> lock(_wonMtx);
+					// Fetch description from auction table?
+					_wonItems[winMsg.itemNum] = { "", winMsg.amount };
+
+					break;
+				}
+				case MessageType::MSG_BID_OVER:
+				{
+					break;
+				}
+				case MessageType::MSG_SOLD_TO:
+				{
+					break;
+				}
+				case MessageType::MSG_NOT_SOLD:
+				{
+					break;
+				}
+				default:;
+				}
+			}
+			catch (int32 error)
+			{
+				if (error == 0) {
+					//TCP Socket was gracefully closed
+					log(s_tcpClosed);
+				}
+				else log(s_tcpError); // Could not receive TCP packet
+			}
+		}
+	});
+}
+
+void wait() {
+	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+}
+
+void Client::sendRegister() {
 	if (!_registered)
 	{
-		//_udpSocket.setTimeout(5000);
-
 		RegisterMessage registerMsg;
 		registerMsg.reqNum = s_reqNum++;
 		memcpy(registerMsg.name, _uniqueName.c_str(), _uniqueName.size() + 1);
@@ -126,59 +366,21 @@ void Client::sendRegister(){
 		// Attempting and waiting on server for register response
 		for (uint32 i = 0; i < NUMBEROFTRIES; i++)
 		{
+			_registered = true; // Temporary registration
+
 			_udpSocket.send(packet);
+			addUDPAck(registerMsg.reqNum);
 			log(LogType::LOG_SEND, MessageType::MSG_REGISTER, _serverIpv4);
 
-			try
-			{
-				Packet registeredPacket = _udpSocket.receive();
+			startUDPWatching();
 
-				if (registeredPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_REGISTERED))
-				{
-					RegisteredMessage registeredMsg = deserializeMessage<RegisteredMessage>(registeredPacket);
+			wait();
 
-					if (registeredMsg.reqNum == registerMsg.reqNum)
-					{
-						// We received a registered packet from the server
-						log(LogType::LOG_RECEIVE, MessageType::MSG_REGISTERED, _serverIpv4);
-
-						_registered = true;
-
-						// We manage to register, try to establish a TCP connection
-						_tcpSocket = new TCPSocket();
-						connect();
-
-						break;
-					}
-					else
-					{
-						// The request numbers do not match? Try again
-					}
-				}
-				else if (registeredPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_UNREGISTERED))
-				{
-					UnregisteredMessage unregMsg = deserializeMessage<UnregisteredMessage>(registeredPacket);
-
-					if (unregMsg.reqNum == registerMsg.reqNum)
-					{
-						// An error occurred on the server while registering. Print reason and try again
-						log(LogType::LOG_RECEIVE, MessageType::MSG_UNREGISTERED, _serverIpv4);
-
-						log(unregMsg.reason);
-					}
-					else
-					{
-						// Request numbers do not match
-					}
-				}
-				else
-				{
-					// Uuhh this was not meant for us
-				}
-			}
-			catch (int32 error)
-			{
-				log(s_serverClosed); // Could not receive UDP packet
+			// Checking ACK receipt
+			if (_udpAck.find(registerMsg.reqNum) == _udpAck.end()) break;
+			else {
+				_registered = false; // Revoke registration as we have not received an acknowledgement
+				log(s_notAck);
 			}
 		}
 	}
@@ -208,57 +410,18 @@ void Client::sendDeregister()
 		for (uint32 i = 0; i < NUMBEROFTRIES; i++)
 		{
 			_udpSocket.send(packet);
+			addUDPAck(deregMsg.reqNum);
 			log(LogType::LOG_SEND, MessageType::MSG_DEREGISTER, _serverIpv4);
 
-			try {
-				Packet deregPacket = _udpSocket.receive();
+			wait();
 
-				if (deregPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_DEREG_CONF))
-				{
-					DeregConfMessage deregConfMsg = deserializeMessage<DeregConfMessage>(deregPacket);
-
-					if (deregConfMsg.reqNum == deregMsg.reqNum)
-					{
-						// We received a confirmation for the deregister everything is gucci
-						log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_CONF, _serverIpv4);
-						_registered = false;
-
-						_tcpSocket->shutdown();
-						delete _tcpSocket;
-						_tcpSocket = nullptr;
-
-						break;
-					}
-					else
-					{
-						// The request numbers do not match? Try again
-					}
-				}
-				else if (deregPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_DEREG_DENIED))
-				{
-					DeregDeniedMessage deregDeniedMsg = deserializeMessage<DeregDeniedMessage>(deregPacket);
-
-					if (deregDeniedMsg.reqNum == deregMsg.reqNum)
-					{
-						// Oof the deregister was denied. Print reason and try again
-						log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_DENIED, _serverIpv4);
-
-						log(deregDeniedMsg.reason);
-					}
-					else
-					{
-						// Request numbers do not match
-					}
-				}
-				else
-				{
-					// Uuhh this was not meant for us
-				}
+			// Checking ACK receipt
+			if (_udpAck.find(deregMsg.reqNum) == _udpAck.end()) {
+				_udpWatch.join();
+				_tcpWatch.join();
+				break;
 			}
-			catch (int32 error)
-			{
-				log(s_serverClosed); // Could not receive UDP packet
-			}
+			else log(s_notAck);
 		}
 	}
 	else
@@ -299,55 +462,14 @@ void Client::sendOffer()
 		for (uint32 i = 0; i < NUMBEROFTRIES; i++)
 		{
 			_udpSocket.send(packet);
+			addUDPAck(offerMsg.reqNum);
 			log(LogType::LOG_SEND, MessageType::MSG_OFFER, _serverIpv4);
-
-			try
-			{
-				Packet offerPacket = _udpSocket.receive();
-
-				if (offerPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_OFFER_CONF))
-				{
-					OfferConfMessage offerConfMsg = deserializeMessage<OfferConfMessage>(offerPacket);
-
-					if (offerConfMsg.reqNum == offerMsg.reqNum)
-					{
-						// We received a confirmation for the offer, good show!
-						log(LogType::LOG_RECEIVE, MessageType::MSG_OFFER_CONF, _serverIpv4);
-
-						// Add item to local table
-
-						break;
-					}
-					else
-					{
-						// Request numbers do not match 
-					}
-				}
-				else if (offerPacket.getMessageData()[0] == static_cast<uint8>(MessageType::MSG_OFFER_DENIED))
-				{
-					OfferDeniedMessage offerDeniedMsg = deserializeMessage<OfferDeniedMessage>(offerPacket);
-
-					if (offerDeniedMsg.reqNum == offerMsg.reqNum)
-					{
-						// Owie the offer was denied. Print reason and try again
-						log(LogType::LOG_RECEIVE, MessageType::MSG_DEREG_DENIED, _serverIpv4);
-
-						log(offerDeniedMsg.reason);
-					}
-					else
-					{
-						// Request numbers do not match
-					}
-				}
-				else
-				{
-					// Uuhh this was not meant for us
-				}
-			}
-			catch (int32 error)
-			{
-				log(s_serverClosed); // Could not receive UDP packet
-			}
+			
+			wait();
+			
+			// Checking ACK receipt
+			if (_udpAck.find(offerMsg.reqNum) == _udpAck.end()) break;
+			else log(s_notAck);
 		}
 	}
 	else
@@ -385,13 +507,15 @@ void Client::sendBid()
 		for (uint32 i = 0; i < NUMBEROFTRIES; i++)
 		{
 			_udpSocket.send(packet);
-			log(LogType::LOG_SEND, MessageType::MSG_BID, _serverIpv4);
+			addUDPAck(bidMsg.reqNum);
+			log(LogType::LOG_SEND, bidMsg.type, _serverIpv4);
 
-			// Packet offerPacket = _udpSocket.receive(); 
+			wait();
 
-			// Check for new highest?
+			// Checking ACK receipt
+			if (_udpAck.find(bidMsg.reqNum) == _udpAck.end()) break;
+			else log(s_notAck);
 		}
-
 	}
 	else
 	{
@@ -436,16 +560,18 @@ void Client::connect() { _tcpSocket->connect(_serverIpv4); }
 void Client::sendPacket(const Packet& packet) { _tcpSocket->send(packet); }
 void Client::shutdown()
 {
-	_tcpSocket->shutdown();
+	if (_tcpSocket != nullptr) {
+		_tcpSocket->shutdown();
 
-	bool receiving = true;
-	Packet receivedPacket;
-	while(_tcpSocket->canReceive()) {
-		receivedPacket = _tcpSocket->receive();
+		bool receiving = true;
+		Packet receivedPacket;
+		while(_tcpSocket->canReceive()) {
+			receivedPacket = _tcpSocket->receive();
+		}
+
+		delete _tcpSocket;
+		_tcpSocket = nullptr;
 	}
-
-	delete _tcpSocket;
-	_tcpSocket = nullptr;
 }
 
 Client::~Client()

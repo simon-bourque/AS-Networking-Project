@@ -4,7 +4,8 @@
 #include "TCPSocket.h"
 
 #include <string>
-#include <vector>
+#include <unordered_map>
+#include <unordered_set>
 #include <thread>
 #include <mutex>
 
@@ -30,8 +31,12 @@ private:
 	struct Item {
 		std::string description;
 		float amount;
-		uint32 itemNum;
 	};
+
+	void addUDPAck(uint32 reqNum);
+	void addTCPAck(uint32 reqNum);
+	void removeUDPAck(uint32 reqNum);
+	void removeTCPAck(uint32 reqNum);
 
 	// UDP
 	void sendRegister();
@@ -48,9 +53,10 @@ private:
 	void printMainMenu();
 
 	// TCP
-	void updateItemsWon() {}; // TODO
-	void updateOffers() {}; // TODO
-	void updateBids() {}; // TODO
+	void updateItemsWon(uint32 itemNum, Item itemWon) {}; // TODO
+	void updateOffers(uint32 itemNum, Item newOffer) {}; // TODO
+	void updateBids(uint32 itemNum, Item newBid); // TODO
+	void updateAH(uint32 itemNum, Item newItem);
 
 	void interpretState();
 
@@ -59,12 +65,23 @@ private:
 	void sendPacket(const Packet& packet);
 	void shutdown();
 
-	// Thread watching TCP Socket and updating local tables
-	void startWatching(); // TODO
-	std::vector<Item> _wonItems;
-	std::vector<Item> _offers;
-	std::vector<Item> _bids;
-	std::thread _watchThread;
+	// Thread watching TCP/UDP Socket and updating local tables
+	void startTCPWatching();
+	void startUDPWatching();
+	std::thread _udpWatch;
+	std::thread _tcpWatch;
+
+	std::unordered_set<uint32> _tcpAck; // Request numbers to be acknowledged
+	std::unordered_set<uint32> _udpAck;
+
+	std::unordered_map<uint32, Item> _wonItems; // Items that this client won
+	std::unordered_map<uint32, Item> _offers; // Items the client is currently selling
+	std::unordered_map<uint32, Item> _bids; // Items that the client has bid on
+	std::unordered_map<uint32, Item> _auctionHouse; // Items available at the auction house
+	
+	std::mutex _udpAckMtx;
+	std::mutex _tcpAckMtx;
+	std::mutex _ahMtx;
 	std::mutex _wonMtx;
 	std::mutex _offersMtx;
 	std::mutex _bidsMtx;
