@@ -14,6 +14,8 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 
+std::mutex g_auctionLock;
+
 Server::Server(const IPV4Address& bindAddress) : 
 	m_serverBindAddress(bindAddress)
 	, m_serverUDPSocket(true)
@@ -60,11 +62,119 @@ void Server::startConnectionServiceThread() {
 	ThreadPool::get()->submit(connectionServiceRoutine, this);
 }
 
-void Server::startBid() {
-	ThreadPool::get()->submitTimer([](PTP_CALLBACK_INSTANCE instance, PVOID context, PTP_TIMER timer) {
-		std::cout << "TIMER DONE!" << std::endl;
+void Server::sendRegistered(uint32 reqNum, const std::string& name, const std::string& ip, const std::string& port, const IPV4Address& address) {
+	RegisteredMessage registeredMsg;
+	registeredMsg.reqNum = reqNum;
+	memcpy(registeredMsg.name, name.c_str(), name.size());
+	memcpy(registeredMsg.iPAddress, ip.c_str(), ip.size());
+	memcpy(registeredMsg.port, port.c_str(), port.size());
+
+	Packet registeredPacket = serializeMessage(registeredMsg);
+	registeredPacket.setAddress(address);
+
+	m_serverUDPSocket.send(registeredPacket);
+	log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
+}
+
+void Server::sendDeregConf(uint32 reqNum, const IPV4Address& address) {
+	DeregConfMessage deregConfMsg;
+	deregConfMsg.reqNum = reqNum;
+
+	Packet deregConfPacket = serializeMessage(deregConfMsg);
+	deregConfPacket.setAddress(address);
+
+	m_serverUDPSocket.send(deregConfPacket);
+	log(LogType::LOG_SEND, deregConfMsg.type, deregConfPacket.getAddress());
+}
+
+void Server::sendDeregDenied(uint32 reqNum, const std::string& reason, const IPV4Address& address) {
+	DeregDeniedMessage deregDeniedMsg;
+	deregDeniedMsg.reqNum = reqNum;
+	memcpy(deregDeniedMsg.reason, reason.c_str(), reason.size());
+
+	Packet deregDeniedPacket = serializeMessage(deregDeniedMsg);
+	deregDeniedPacket.setAddress(address);
+
+	m_serverUDPSocket.send(deregDeniedPacket);
+	log(LogType::LOG_SEND, deregDeniedMsg.type, deregDeniedPacket.getAddress());
+}
+
+void Server::sendOfferConf(uint32 reqNum, uint32 itemNum, const std::string& description, float32 minimum, const IPV4Address& address) {
+	OfferConfMessage offerConfMsg;
+	offerConfMsg.reqNum = reqNum;
+	memcpy(offerConfMsg.description, description.c_str(), description.length());
+	offerConfMsg.minimum = minimum;
+	offerConfMsg.itemNum = itemNum;
+
+	Packet offerConfPacket = serializeMessage(offerConfMsg);
+	offerConfPacket.setAddress(address);
+
+	m_serverUDPSocket.send(offerConfPacket);
+	log(LogType::LOG_SEND, offerConfMsg.type, offerConfPacket.getAddress());
+}
+
+void Server::sendOfferDenied(uint32 reqNum, const std::string& reason, const IPV4Address& address) {
+	OfferDeniedMessage offerDeniedMsg;
+	offerDeniedMsg.reqNum = reqNum;
+	memcpy(offerDeniedMsg.reason, reason.c_str(), reason.size());
+
+	Packet offerDeniedPacket = serializeMessage(offerDeniedMsg);
+	offerDeniedPacket.setAddress(address);
+
+	m_serverUDPSocket.send(offerDeniedPacket);
+	log(LogType::LOG_SEND, offerDeniedMsg.type, offerDeniedPacket.getAddress());
+}
+
+void Server::sendNewItem(const Item& item) {
+	NewItemMessage newItemMsg;
+	newItemMsg.itemNum = item.getItemID();
+	memcpy(newItemMsg.description, item.getDescription().c_str(), item.getDescription().size());
+	newItemMsg.minimum = item.getMinimum();
+	newItemMsg.port[0] = '\0';
+
+	Packet packet = serializeMessage(newItemMsg);
+
+	// Send to everyone registered
+	for (auto& pair : m_connections) {
+		Connection& connection = pair.second;
+		if (connection.isConnected()) {
+			packet.setAddress(connection.getAddress());
+			
+			m_serverUDPSocket.send(packet);
+			log(LogType::LOG_SEND, newItemMsg.type, packet.getAddress());
+		}
+	}
+}
+
+void Server::startAuction(const Item& item) {
+	std::lock_guard<std::mutex> lock(g_auctionLock);
+
+	Item* newItem = new Item(item);
+	m_offeredItems[item.getItemID()] = newItem;
+
+	log("[INFO] Starting auction for item number %u with a min bid of %.2f", item.getItemID(), item.getMinimum());
+	
+	std::pair<Server*, Item*>* pair = new std::pair<Server*, Item*>(this, newItem);
+	ThreadPool::get()->submitTimer([](PTP_CALLBACK_INSTANCE instance, PVOID arg, PTP_TIMER timer) {
+		std::pair<Server*, Item*>* inPair = reinterpret_cast<std::pair<Server*, Item*>*>(arg);
+		Server* server = inPair->first;
+		Item* finishedItem = inPair->second;
+
+		inPair->first->endAuction(*finishedItem);
+		log("[INFO] Auction ended for item number %u with a price of %.2f", finishedItem->getItemID(), 0.0f);
+
+		delete finishedItem;
+		delete inPair;
 		CloseThreadpoolTimer(timer);
-	}, nullptr);
+	}, pair);
+}
+
+void Server::endAuction(const Item& item) {
+	std::lock_guard<std::mutex> lock(g_auctionLock);
+
+	m_offeredItems.erase(item.getItemID());
+
+	// SEND UDP PACKETS
 }
 
 void Server::handlePacket(const Packet& packet) {
@@ -97,17 +207,7 @@ void Server::handleRegisterPacket(const Packet& packet) {
 		log("[INFO] Client %s (%s) already registered", msg.name, packet.getAddress().getSocketAddressAsString().c_str());
 	}
 
-	RegisteredMessage registeredMsg;
-	registeredMsg.reqNum = msg.reqNum;
-	memcpy(registeredMsg.name, msg.name, NAMELENGTH);
-	memcpy(registeredMsg.iPAddress, msg.iPAddress, IPLENGTH);
-	memcpy(registeredMsg.port, msg.port, PORTLENGTH);
-
-	Packet registeredPacket = serializeMessage(registeredMsg);
-	registeredPacket.setAddress(packet.getAddress());
-
-	m_serverUDPSocket.send(registeredPacket);
-	log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
+	sendRegistered(msg.reqNum, std::string(msg.name), std::string(msg.iPAddress), std::string(msg.port), packet.getAddress());
 }
 
 void Server::handleDeregisterPacket(const Packet& packet) {
@@ -118,14 +218,7 @@ void Server::handleDeregisterPacket(const Packet& packet) {
 	if (it != m_connections.end())
 	{
 		// User was found in the registered table, remove him
-		DeregConfMessage deregConfMsg;
-		deregConfMsg.reqNum = msg.reqNum;
-
-		Packet deregConfPacket = serializeMessage(deregConfMsg);
-		deregConfPacket.setAddress(packet.getAddress());
-
-		m_serverUDPSocket.send(deregConfPacket);
-		log(LogType::LOG_SEND, deregConfMsg.type, deregConfPacket.getAddress());
+		sendDeregConf(msg.reqNum, packet.getAddress());
 
 		(*it).second.shutdown();
 		m_connections.erase(it);
@@ -133,17 +226,7 @@ void Server::handleDeregisterPacket(const Packet& packet) {
 	else
 	{
 		// User was not found in the registered table
-		DeregDeniedMessage deregDeniedMsg;
-		deregDeniedMsg.reqNum = msg.reqNum;
-
-		char reason[REASONLENGTH] = "User was not previously registered";
-		memcpy(deregDeniedMsg.reason, reason, REASONLENGTH);
-
-		Packet deregDeniedPacket = serializeMessage(deregDeniedMsg);
-		deregDeniedPacket.setAddress(packet.getAddress());
-
-		m_serverUDPSocket.send(deregDeniedPacket);
-		log(LogType::LOG_SEND, deregDeniedMsg.type, deregDeniedPacket.getAddress());
+		sendDeregDenied(msg.reqNum, "User not registered", packet.getAddress());
 	}
 }
 
@@ -156,36 +239,34 @@ void Server::handleOfferPacket(const Packet& packet) {
 	if (connected) {
 		Connection& connection = (*iter).second;
 
-		// TODO start new bid
-		// TODO check if item already offered using reqID
-		Item item(std::string(msg.description), msg.minimum);
+		if (msg.reqNum > connection.getOfferReqNumber()) {
+			// Client offering new item
+			Item item(std::string(msg.description), msg.minimum);
 
-		// Send confirmation
-		OfferConfMessage offerConfMsg;
-		offerConfMsg.reqNum = msg.reqNum;
-		memcpy(offerConfMsg.description, msg.description, DESCLENGTH);
-		offerConfMsg.minimum = msg.minimum;
-		offerConfMsg.itemNum = item.getItemID();
+			connection.setLastItemOfferedID(item.getItemID());
+			connection.setOfferReqNumber(msg.reqNum);
 
-		Packet offerConfPacket = serializeMessage(offerConfMsg);
-		offerConfPacket.setAddress(packet.getAddress());
+			// Send confirmation
+			sendOfferConf(msg.reqNum, item.getItemID(), std::string(msg.description), msg.minimum, packet.getAddress());
 
-		m_serverUDPSocket.send(offerConfPacket);
-		log(LogType::LOG_SEND, offerConfMsg.type, offerConfPacket.getAddress());
+			startAuction(item);
+		}
+		else {
+			// Client resend same item
+			auto iter = m_offeredItems.find(connection.getLastItemOfferedID());
+			if (iter != m_offeredItems.end()) {
+				// Send confirmation
+				sendOfferConf(msg.reqNum, connection.getLastItemOfferedID(), std::string(msg.description), msg.minimum, packet.getAddress());
+			}
+			else {
+				// REALLY REALLY BAD I hope this never happens
+				sendOfferDenied(msg.reqNum, "Invalid request number", packet.getAddress());
+			}
+		}
 	}
 	else {
 		// Client not registered
-		OfferDeniedMessage offerDeniedMsg;
-		offerDeniedMsg.reqNum = msg.reqNum;
-		
-		char reason[REASONLENGTH] = "User was not previously registered";
-		memcpy(offerDeniedMsg.reason, reason, REASONLENGTH);
-
-		Packet offerDeniedPacket = serializeMessage(offerDeniedMsg);
-		offerDeniedPacket.setAddress(packet.getAddress());
-
-		m_serverUDPSocket.send(offerDeniedPacket);
-		log(LogType::LOG_SEND, offerDeniedMsg.type, offerDeniedPacket.getAddress());
+		sendOfferDenied(msg.reqNum, "User not registered", packet.getAddress());
 	}
 }
 

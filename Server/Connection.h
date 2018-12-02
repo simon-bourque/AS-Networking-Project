@@ -25,6 +25,7 @@ private:
 	OverlappedBuffer m_overlappedBuffer;
 
 	uint32 m_offerReqNumber;
+	uint32 m_lastItemOfferedID;
 public:
 	Connection();
 	Connection(const std::string& name, const IPV4Address& address);
@@ -37,5 +38,11 @@ public:
 	const IPV4Address& getAddress() const { return m_address; }
 
 	bool isConnected() const { return m_state == ConnectionState::CONNECTED; }
+
+	void setOfferReqNumber(uint32 offerRequestNumber) { m_offerReqNumber = offerRequestNumber; }
+	uint32 getOfferReqNumber() const { return m_offerReqNumber; }
+
+	void setLastItemOfferedID(uint32 itemOfferedID) { m_lastItemOfferedID = itemOfferedID; }
+	uint32 getLastItemOfferedID() const { return m_lastItemOfferedID; }
 };
 

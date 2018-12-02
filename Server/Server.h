@@ -12,6 +12,7 @@
 #include "UDPSocket.h"
 #include "TCPSocket.h"
 #include "OverlappedBuffer.h"
+#include "Item.h"
 
 class Server {
 private:
@@ -20,6 +21,7 @@ private:
 	friend void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
 
 	std::unordered_map<std::string, Connection> m_connections;
+	std::unordered_map<uint32, Item*> m_offeredItems;
 
 	bool m_running;
 
@@ -40,7 +42,13 @@ private:
 	void handleDeregisterPacket(const Packet& packet);
 	void handleOfferPacket(const Packet& packet);
 
-	void startBid();
+	void sendRegistered(uint32 reqNum, const std::string& name, const std::string& ip, const std::string& port, const IPV4Address& address);
+	void sendDeregConf(uint32 reqNum, const IPV4Address& address);
+	void sendDeregDenied(uint32 reqNum, const std::string& reason, const IPV4Address& address);
+	void sendOfferConf(uint32 reqNum, uint32 itemNum, const std::string& description, float32 minimum, const IPV4Address& address);
+	void sendOfferDenied(uint32 reqNum, const std::string& reason, const IPV4Address& address);
+	void sendNewItem(const Item& item);
+
 public:
 	Server(const IPV4Address& bindAddress);
 	virtual ~Server();
@@ -50,5 +58,8 @@ public:
 	void startConnectionServiceThread();
 
 	void shutdown();
+
+	void startAuction(const Item& item);
+	void endAuction(const Item& item);
 };
 

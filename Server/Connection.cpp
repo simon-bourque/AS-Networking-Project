@@ -15,6 +15,7 @@ Connection::Connection(const std::string& name, const IPV4Address& address) :
 	, m_uniqueName(name)
 	, m_address(address)
 	, m_offerReqNumber(0)
+	, m_lastItemOfferedID(0)
 {}
 
 
