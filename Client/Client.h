@@ -25,6 +25,7 @@ private:
 		DISPLAYING_OFFERS,
 		DISPLAYING_BIDS,
 		DISPLAYING_WON_ITEMS,
+		DISPLAYING_AH,
 		DISCONNECTING
 	};
 
@@ -44,17 +45,21 @@ private:
 
 	void disconnect();
 
-	void printBids(); // TODO
-	void printOffers(); // TODO
-	void printWonItems(); // TODO
+	void printBids();
+	void printOffers();
+	void printWonItems();
+	void printAH();
 
 	void printMainMenu();
 
 	// TCP
-	void updateItemsWon(uint32 itemNum, Item itemWon) {}; // TODO
-	void updateOffers(uint32 itemNum, Item newOffer) {}; // TODO
-	void updateBids(uint32 itemNum, Item newBid); // TODO
+	void updateItemsWon(uint32 itemNum, Item itemWon);
+	void updateOffers(uint32 itemNum, Item newOffer);
+	void removeOffer(uint32 itemNum);
+	void updateBids(uint32 itemNum, Item newBid);
+	void removeBid(uint32 itemNum);
 	void updateAH(uint32 itemNum, Item newItem);
+	void removeAH(uint32 itemNum);
 
 	void interpretState();
 

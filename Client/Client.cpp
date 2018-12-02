@@ -72,6 +72,8 @@ void Client::printMainMenu()
 	case 6:
 		_state = ClientState::DISPLAYING_WON_ITEMS; break;
 	case 7:
+		_state = ClientState::DISPLAYING_AH; break;
+	case 8:
 		_state = ClientState::DISCONNECTING; break;
 	default:
 		_state = ClientState::MAIN_MENU;
@@ -96,6 +98,8 @@ void Client::interpretState()
 		printBids(); break;
 	case ClientState::DISPLAYING_WON_ITEMS:
 		printWonItems(); break;
+	case ClientState::DISPLAYING_AH:
+		printAH(); break;
 	case ClientState::DISCONNECTING:
 		disconnect(); break;
 	case ClientState::MAIN_MENU:
@@ -110,15 +114,53 @@ void Client::updateAH(uint32 itemNum, Item newItem) {
 	// Updating auction house table with new amount
 	auto it = _auctionHouse.find(itemNum);
 	if (it != _auctionHouse.end()) {
-		_auctionHouse[itemNum].amount = newItem.amount;
+		if (it->second.description == "") {
+			// We don't have a description, try to update it
+			it->second.description = newItem.description;
+		}
+		it->second.amount = newItem.amount;
 	}
 	else {
-		// This client has never seen this item, add new item to the table without description
-		_auctionHouse[itemNum] = { "", newItem.amount };
+		// This client has never seen this item, add new item to the table
+		_auctionHouse[itemNum] = { newItem.description, newItem.amount };
+	}
+}
+
+void Client::removeAH(uint32 itemNum) {
+	std::lock_guard<std::mutex> lock(_ahMtx);
+
+	// Removing previous bid from bid table
+	auto it = _auctionHouse.find(itemNum);
+	if (it != _auctionHouse.end()) {
+		// Previous bid was found, remove it
+		_auctionHouse.erase(it);
+	}
+	else {
+		// Previous bid was not found, wtf happened
+		log(s_bidNotFound);
 	}
 }
 
 void Client::updateBids(uint32 itemNum, Item newItem) {
+	std::lock_guard<std::mutex> lock(_bidsMtx);
+
+	// Removing previous bid from bid table
+	auto it = _bids.find(itemNum);
+	if (it != _bids.end()) {
+		// Previous bid was found, update it
+		if (it->second.description == "") {
+			// We don't have a description, try to update it
+			it->second.description = newItem.description;
+		}
+		it->second.amount = newItem.amount;
+	}
+	else {
+		// Previous bid was not found, add it
+		_bids[itemNum] = { newItem.description, newItem.amount };
+	}
+}
+
+void Client::removeBid(uint32 itemNum) {
 	std::lock_guard<std::mutex> lock(_bidsMtx);
 
 	// Removing previous bid from bid table
@@ -130,6 +172,59 @@ void Client::updateBids(uint32 itemNum, Item newItem) {
 	else {
 		// Previous bid was not found, wtf happened
 		log(s_bidNotFound);
+	}
+}
+
+void Client::updateOffers(uint32 itemNum, Item newItem) {
+	std::lock_guard<std::mutex> lock(_offersMtx);
+
+	// Removing previous bid from bid table
+	auto it = _offers.find(itemNum);
+	if (it != _offers.end()) {
+		// Previous bid was found, update it
+		if (it->second.description == "") {
+			// We don't have a description, try to update it
+			it->second.description = newItem.description;
+		}
+		it->second.amount = newItem.amount;
+	}
+	else {
+		// Previous bid was not found, add it
+		_offers[itemNum] = { newItem.description, newItem.amount };
+	}
+}
+
+void Client::removeOffer(uint32 itemNum) {
+	std::lock_guard<std::mutex> lock(_offersMtx);
+
+	// Removing previous bid from bid table
+	auto it = _offers.find(itemNum);
+	if (it != _offers.end()) {
+		// Previous bid was found, remove it
+		_offers.erase(it);
+	}
+	else {
+		// Previous bid was not found, wtf happened
+		log(s_offerNotFound);
+	}
+}
+
+void Client::updateItemsWon(uint32 itemNum, Item newItem) {
+	std::lock_guard<std::mutex> lock(_wonMtx);
+
+	// Removing previous bid from bid table
+	auto it = _wonItems.find(itemNum);
+	if (it != _wonItems.end()) {
+		// Previous bid was found, update it
+		if (it->second.description == "") {
+			// We don't have a description, try to update it
+			it->second.description = newItem.description;
+		}
+		it->second.amount = newItem.amount;
+	}
+	else {
+		// Previous bid was not found, add it
+		_wonItems[itemNum] = { newItem.description, newItem.amount };
 	}
 }
 
@@ -146,7 +241,7 @@ void Client::removeUDPAck(uint32 reqNum) {
 void Client::startUDPWatching() {
 	_udpWatch = std::thread([this] {
 		while (_continue && _registered) {
-			if (_udpSocket.canReceive() && _udpAck.size() > 0) {
+			if (_udpSocket.canReceive()) {
 				try {
 					Packet receivedPacket = _udpSocket.receive(); // Blocking call
 					MessageType messageType = static_cast<MessageType>(receivedPacket.getMessageData()[0]);
@@ -232,7 +327,9 @@ void Client::startUDPWatching() {
 							// We received a confirmation for the offer, good show!
 							log(LogType::LOG_RECEIVE, offerConfMsg.type, _serverIpv4);
 
-							// TODO Add item to local table
+							// Add item to local table
+							updateOffers(offerConfMsg.itemNum, {offerConfMsg.description, offerConfMsg.minimum});
+							updateAH(offerConfMsg.itemNum, { offerConfMsg.description, offerConfMsg.minimum });
 
 							removeUDPAck(offerConfMsg.reqNum);
 						}
@@ -253,6 +350,17 @@ void Client::startUDPWatching() {
 							removeUDPAck(offerDeniedMsg.reqNum);
 						}
 						else log(s_wrongAck);
+						break;
+					}
+					case MessageType::MSG_NEW_ITEM:
+					{
+						// Note: this message is not an ACK
+						NewItemMessage newItemMsg = deserializeMessage<NewItemMessage>(receivedPacket);
+
+						log(LogType::LOG_RECEIVE, newItemMsg.type, _serverIpv4);
+						log(s_newItem, newItemMsg.itemNum);
+
+						updateAH(newItemMsg.itemNum, { newItemMsg.description, newItemMsg.minimum });
 						break;
 					}
 
@@ -292,7 +400,7 @@ void Client::startTCPWatching() {
 						log("Item #: %u", itemNum);
 						log("New amount: %.2f", newAmount);
 
-						updateBids(itemNum, { "", newAmount });
+						removeBid(itemNum);
 						updateAH(itemNum, { "", newAmount });
 
 						break;
@@ -304,22 +412,60 @@ void Client::startTCPWatching() {
 
 						log(LogType::LOG_RECEIVE, winMsg.type, _serverIpv4);
 
-						std::lock_guard<std::mutex> lock(_wonMtx);
-						// Fetch description from auction table?
-						_wonItems[winMsg.itemNum] = { "", winMsg.amount };
+						// Fetching description (read only) from AH because not in win message
+						std::string description = "";
+						auto it = _auctionHouse.find(winMsg.itemNum);
+						if (it != _auctionHouse.end()) {
+							description = it->second.description;
+						}
+
+						updateItemsWon(winMsg.itemNum, {description, winMsg.amount});
 
 						break;
 					}
 					case MessageType::MSG_BID_OVER:
 					{
+						// This bid is over
+						BidOverMessage bidOverMsg = deserializeMessage<BidOverMessage>(receivedPacket);
+
+						log(LogType::LOG_RECEIVE, bidOverMsg.type, _serverIpv4);
+						log(s_bidOver, bidOverMsg.itemNum, bidOverMsg.amount);
+
+						// Remove item from AH
+						removeAH(bidOverMsg.itemNum);
+						// Remove item from bids
+						removeBid(bidOverMsg.itemNum);
+
 						break;
 					}
 					case MessageType::MSG_SOLD_TO:
 					{
+						// One of the client's item was sold
+						SoldToMessage soldToMsg = deserializeMessage<SoldToMessage>(receivedPacket);
+
+						log(LogType::LOG_RECEIVE, soldToMsg.type, _serverIpv4);
+						log(s_itemSold, soldToMsg.itemNum, soldToMsg.name, soldToMsg.amount);
+						
+						// Remove item from AH
+						removeAH(soldToMsg.itemNum);
+						// Remove item from offers
+						removeOffer(soldToMsg.itemNum);
+
 						break;
 					}
 					case MessageType::MSG_NOT_SOLD:
 					{
+						// One of the client's item did not sell in time
+						NotSoldMessage notSoldMsg = deserializeMessage<NotSoldMessage>(receivedPacket);
+
+						log(LogType::LOG_RECEIVE, notSoldMsg.type, _serverIpv4);
+						log(s_itemNotSold, notSoldMsg.itemNum, notSoldMsg.reason);
+
+						// Remove item from AH
+						removeAH(notSoldMsg.itemNum);
+						// Remove item from offers
+						removeOffer(notSoldMsg.itemNum);
+
 						break;
 					}
 					default:;
@@ -389,8 +535,7 @@ void Client::sendRegister() {
 	_state = ClientState::MAIN_MENU;
 }
 
-void Client::sendDeregister()
-{
+void Client::sendDeregister() {
 	if (_registered)
 	{
 		DeregisterMessage deregMsg;
@@ -430,15 +575,14 @@ void Client::sendDeregister()
 	_state = ClientState::MAIN_MENU;
 }
 
-void Client::sendOffer()
-{
+void Client::sendOffer() {
 	// CIN the parameters and send the offer to the server
 	// Need to check for receive of OFFER_CONF or OFFER_DENIED
 	if (_registered)
 	{
 		std::string description;
 		std::cout << "Enter your product description: " << std::endl;
-		std::cin >> description;
+		std::getline(std::cin, description);
 
 		float minimum;
 		std::cout << "At what price should the auction start?: " << std::endl;
@@ -478,8 +622,7 @@ void Client::sendOffer()
 	_state = ClientState::MAIN_MENU;
 }
 
-void Client::sendBid()
-{
+void Client::sendBid() {
 	// CIN the parameters and send the bid to the 
 	if (_registered)
 	{
@@ -523,39 +666,63 @@ void Client::sendBid()
 	_state = ClientState::MAIN_MENU;
 }
 
-void Client::printBids()
-{
+void Client::printBids() {
+	log("%s's current bids:", _uniqueName.c_str());
+	log("Description\tItem Number\tAmount");
 	// Print bids this client has put on items other than their own
+	for (const auto& bid : _bids) {
+		log("%s\t%u\t%.2f", bid.second.description.c_str(), bid.first, bid.second.amount);
+	}
 
 	// Go back to main menu
 	_state = ClientState::MAIN_MENU;
 }
 
-void Client::printOffers()
-{
+void Client::printAH() {
+	log("The Auction House:");
+	log("Description\tItem Number\tAmount");
+	// Print all available items at the AH
+	for (const auto& item : _auctionHouse) {
+		log("%s\t%u\t%.2f", item.second.description.c_str(), item.first, item.second.amount);
+	}
+
+	// Go back to main menu
+	_state = ClientState::MAIN_MENU;
+}
+
+void Client::printOffers() {
 	// Print items currently being sold by this client
+	log("%s's current offers:", _uniqueName.c_str());
+	log("Description\tItem Number\tAmount");
+	// Print items this client is offering
+	for (const auto& offer : _offers) {
+		log("%s\t%u\t%.2f", offer.second.description.c_str(), offer.first, offer.second.amount);
+	}
 
 	// Go back to main menu
 	_state = ClientState::MAIN_MENU;
 }
 
-void Client::printWonItems()
-{
+void Client::printWonItems() {
 	// Print items that were won by this client
+	log("%s's won items:", _uniqueName.c_str());
+	log("Description\tItem Number\tAmount");
+	// Print items this client has won
+	for (const auto& item : _wonItems) {
+		log("%s\t%u\t%.2f", item.second.description, item.first, item.second.amount);
+	}
 
 	// Go back to main menu
 	_state = ClientState::MAIN_MENU;
 }
 
-void Client::disconnect()
-{
+void Client::disconnect() {
 	_continue = false;
 }
 
 void Client::connect() { _tcpSocket->connect(_serverIpv4); }
 void Client::sendPacket(const Packet& packet) { _tcpSocket->send(packet); }
-void Client::shutdown()
-{
+void Client::shutdown() {
 	if (_tcpSocket != nullptr) {
 		_tcpSocket->shutdown();
 		delete _tcpSocket;
@@ -566,7 +733,6 @@ void Client::shutdown()
 	if(_tcpWatch.joinable()) _tcpWatch.join();
 }
 
-Client::~Client()
-{
+Client::~Client() {
 	shutdown();
 }

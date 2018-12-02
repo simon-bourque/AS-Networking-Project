@@ -1,6 +1,6 @@
 #pragma once
 
-static char constexpr s_mainMenuString[] = "\n0.Register\n1.Deregister\n2.Send Offer\n3.Send Bid\n4.Display Offers\n5.Display Bids\n6.Display Won Items\n7.Disconnect";
+static char constexpr s_mainMenuString[] = "\n0.Register\n1.Deregister\n2.Send Offer\n3.Send Bid\n4.Display Offers\n5.Display Bids\n6.Display Won Items\n7.Display Auction House\n8.Disconnect";
 static char constexpr s_separator[] = "=============================================================";
 
 // Errors
@@ -16,6 +16,12 @@ static char constexpr s_tcpForceClosed[] = "\n[ERROR] Remote connection was forc
 // Info
 static char constexpr s_tcpClosed[] = "[INFO] TCP Connection was gracefully closed.";
 static char constexpr s_bidNotFound[] = "[INFO] Previous bid was not found locally. Ignoring.";
+static char constexpr s_itemNotFound[] = "[INFO] Item was not found locally. Ignoring.";
+static char constexpr s_offerNotFound[] = "[INFO] Offer was not found locally. Ignoring.";
 
 // Update
 static char constexpr s_highest[] = "[UPDATE] One of your bids has been surpassed";
+static char constexpr s_itemSold[] = "[UPDATE] Your item %u was sold to %s for %.2f";
+static char constexpr s_itemNotSold[] = "[UPDATE] Your item %u was not sold because: %s";
+static char constexpr s_bidOver[] = "[UPDATE] Bid for item %u is over. Winning amount was %.2f";
+static char constexpr s_newItem[] = "[UPDATE] Item %u was added to the Auction House!";
