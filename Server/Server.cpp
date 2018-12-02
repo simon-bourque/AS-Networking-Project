@@ -150,6 +150,7 @@ void Server::sendHighest(const Item& item) {
 	HighestMessage highMsg;
 	highMsg.itemNum = item.getItemID();
 	highMsg.amount = item.getCurrentHighest();
+	memcpy(highMsg.description, item.getDescription().c_str(), item.getDescription().size() + 1);
 
 	Packet packet = serializeMessage(highMsg);
 
@@ -209,6 +210,52 @@ void Server::sendBidOver(const Item& item) {
 	}
 }
 
+void Server::sendSoldTo(const Item& item) {
+	SoldToMessage soldToMsg;
+	soldToMsg.itemNum = item.getItemID();
+	soldToMsg.amount = item.getCurrentHighest();
+	soldToMsg.port[0] = '\0';
+
+	// Get winner connection
+	auto iter = m_connections.find(item.getHighestBidder().getSocketAddressAsString());
+	if (iter != m_connections.end()) {
+		Connection& connection = iter->second;
+		memcpy(soldToMsg.name, connection.getUniqueName().c_str(), connection.getUniqueName().size() + 1);
+		memcpy(soldToMsg.iPAddress, connection.getAddress().getSocketAddressAsString().c_str(), connection.getAddress().getSocketAddressAsString().size() + 1);
+	}
+	else {
+		soldToMsg.name[0] = '\0';
+		soldToMsg.iPAddress[0] = '\0';
+	}
+
+	auto iter2 = m_connections.find(item.getSeller().getSocketAddressAsString());
+	if (iter2 != m_connections.end()) {
+		Connection& seller = iter2->second;
+		if (seller.isConnected()) {
+			Packet packet = serializeMessage(soldToMsg);
+			seller.send(packet);
+			log(LogType::LOG_SEND, soldToMsg.type, seller.getAddress());
+		}
+	}
+}
+
+void Server::sendNotSold(const Item& item) {
+	NotSoldMessage notSoldMsg;
+	notSoldMsg.itemNum = item.getItemID();
+	memcpy(notSoldMsg.reason, "No valid bids", 14);
+
+	// Find seller
+	auto iter = m_connections.find(item.getSeller().getSocketAddressAsString());
+	if (iter != m_connections.end()) {
+		Connection& seller = iter->second;
+		if (seller.isConnected()) {
+			Packet packet = serializeMessage(notSoldMsg);
+			seller.send(packet);
+			log(LogType::LOG_SEND, notSoldMsg.type, seller.getAddress());
+		}
+	}
+}
+
 void Server::startAuction(const Item& item) {
 	std::lock_guard<std::mutex> lock(g_auctionLock);
 
@@ -264,8 +311,16 @@ void Server::endAuction(const Item& item) {
 	m_offeredItems.erase(item.getItemID());
 
 	// SEND TCP PACKETS
-	sendWin(item);
 	sendBidOver(item);
+
+	// Check if anyone bid on the item
+	if (item.getCurrentHighest() != item.getMinimum()) {
+		sendWin(item);
+		sendSoldTo(item);
+	}
+	else {
+		sendNotSold(item);
+	}
 }
 
 void Server::handlePacket(const Packet& packet) {

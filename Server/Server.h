@@ -52,6 +52,8 @@ private:
 	void sendHighest(const Item& item);
 	void sendWin(const Item& item);
 	void sendBidOver(const Item& item);
+	void sendSoldTo(const Item& item);
+	void sendNotSold(const Item& item);
 
 public:
 	Server(const IPV4Address& bindAddress);
