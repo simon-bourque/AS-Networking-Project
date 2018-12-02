@@ -15,6 +15,7 @@ static char constexpr s_tcpForceClosed[] = "\n[ERROR] Remote connection was forc
 
 // Info
 static char constexpr s_tcpClosed[] = "[INFO] TCP Connection was gracefully closed.";
+static char constexpr s_ahNotFound[] = "[INFO] Previous item was not found locally in AH. Ignoring.";
 static char constexpr s_bidNotFound[] = "[INFO] Previous bid was not found locally. Ignoring.";
 static char constexpr s_itemNotFound[] = "[INFO] Item was not found locally. Ignoring.";
 static char constexpr s_offerNotFound[] = "[INFO] Offer was not found locally. Ignoring.";

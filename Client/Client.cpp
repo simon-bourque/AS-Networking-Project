@@ -137,7 +137,7 @@ void Client::removeAH(uint32 itemNum) {
 	}
 	else {
 		// Previous bid was not found, wtf happened
-		log(s_bidNotFound);
+		log(s_ahNotFound);
 	}
 }
 
@@ -262,8 +262,6 @@ void Client::startUDPWatching() {
 							connect();
 
 							removeUDPAck(registeredMsg.reqNum);
-
-							startTCPWatching();
 						}
 						else log(s_wrongAck);
 						break;
@@ -400,17 +398,17 @@ void Client::startTCPWatching() {
 						log("Item #: %u", itemNum);
 						log("New amount: %.2f", newAmount);
 
-						if (_offers.find(itemNum) == _offers.end()) {
+						if (_offers.find(itemNum) != _offers.end()) {
 							// This highest message is for an item this client owns
 							// Update the client's offers
 							updateOffers(itemNum, {"", newAmount });
 
-							if ((_bids.find(itemNum) == _bids.end())) {
+							if ((_bids.find(itemNum) != _bids.end())) {
 								// This client just bid on his own item, what a jackass
 								updateBids(itemNum, { "", newAmount });
 							}
 						}
-						else if (_bids.find(highestMsg.itemNum) == _bids.end()) {
+						else if (_bids.find(itemNum) != _bids.end()) {
 							// You just got outbidded
 							removeBid(itemNum);
 						}
@@ -527,14 +525,18 @@ void Client::sendRegister() {
 			addUDPAck(registerMsg.reqNum);
 			log(LogType::LOG_SEND, MessageType::MSG_REGISTER, _serverIpv4);
 
-			if(!_udpWatch.joinable()) startUDPWatching();
+			startUDPWatching();
 
 			wait();
 
 			// Checking ACK receipt
-			if (_udpAck.find(registerMsg.reqNum) == _udpAck.end()) break;
+			if (_udpAck.find(registerMsg.reqNum) == _udpAck.end()) {
+				startTCPWatching();
+				break;
+			}
 			else {
 				_registered = false; // Revoke registration as we have not received an acknowledgement
+				_udpWatch.join();
 				log(s_notAck);
 			}
 		}
