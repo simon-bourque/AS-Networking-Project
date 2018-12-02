@@ -21,7 +21,7 @@ static char constexpr s_itemNotFound[] = "[INFO] Item was not found locally. Ign
 static char constexpr s_offerNotFound[] = "[INFO] Offer was not found locally. Ignoring.";
 
 // Update
-static char constexpr s_highest[] = "[UPDATE] One of your bids has been surpassed";
+static char constexpr s_highest[] = "[UPDATE] New highest bid received";
 static char constexpr s_itemSold[] = "[UPDATE] Your item %u was sold to %s for %.2f";
 static char constexpr s_itemNotSold[] = "[UPDATE] Your item %u was not sold because: %s";
 static char constexpr s_bidOver[] = "[UPDATE] Bid for item %u is over. Winning amount was %.2f";
