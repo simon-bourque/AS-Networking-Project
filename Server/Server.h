@@ -41,6 +41,7 @@ private:
 	void handleRegisterPacket(const Packet& packet);
 	void handleDeregisterPacket(const Packet& packet);
 	void handleOfferPacket(const Packet& packet);
+	void handleBidPacket(const Packet& packet);
 
 	void sendRegistered(uint32 reqNum, const std::string& name, const std::string& ip, const std::string& port, const IPV4Address& address);
 	void sendDeregConf(uint32 reqNum, const IPV4Address& address);
@@ -48,6 +49,7 @@ private:
 	void sendOfferConf(uint32 reqNum, uint32 itemNum, const std::string& description, float32 minimum, const IPV4Address& address);
 	void sendOfferDenied(uint32 reqNum, const std::string& reason, const IPV4Address& address);
 	void sendNewItem(const Item& item);
+	void sendHighest(const Item& item);
 
 public:
 	Server(const IPV4Address& bindAddress);
@@ -60,6 +62,7 @@ public:
 	void shutdown();
 
 	void startAuction(const Item& item);
+	void bid(uint32 itemID, float32 newBid, const IPV4Address& bidder);
 	void endAuction(const Item& item);
 };
 

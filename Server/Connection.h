@@ -3,6 +3,7 @@
 #include "ThreadPool.h"
 #include "OverlappedBuffer.h"
 #include "IPV4Address.h"
+#include "Packet.h"
 
 #include <string>
 #include <Windows.h>
@@ -44,5 +45,7 @@ public:
 
 	void setLastItemOfferedID(uint32 itemOfferedID) { m_lastItemOfferedID = itemOfferedID; }
 	uint32 getLastItemOfferedID() const { return m_lastItemOfferedID; }
+
+	void send(const Packet& packet);
 };
 

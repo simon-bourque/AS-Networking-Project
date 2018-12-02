@@ -102,7 +102,7 @@ void Server::sendDeregDenied(uint32 reqNum, const std::string& reason, const IPV
 void Server::sendOfferConf(uint32 reqNum, uint32 itemNum, const std::string& description, float32 minimum, const IPV4Address& address) {
 	OfferConfMessage offerConfMsg;
 	offerConfMsg.reqNum = reqNum;
-	memcpy(offerConfMsg.description, description.c_str(), description.length());
+	memcpy(offerConfMsg.description, description.c_str(), description.size() + 1);
 	offerConfMsg.minimum = minimum;
 	offerConfMsg.itemNum = itemNum;
 
@@ -128,7 +128,7 @@ void Server::sendOfferDenied(uint32 reqNum, const std::string& reason, const IPV
 void Server::sendNewItem(const Item& item) {
 	NewItemMessage newItemMsg;
 	newItemMsg.itemNum = item.getItemID();
-	memcpy(newItemMsg.description, item.getDescription().c_str(), item.getDescription().size());
+	memcpy(newItemMsg.description, item.getDescription().c_str(), item.getDescription().size() + 1);
 	newItemMsg.minimum = item.getMinimum();
 	newItemMsg.port[0] = '\0';
 
@@ -146,6 +146,23 @@ void Server::sendNewItem(const Item& item) {
 	}
 }
 
+void Server::sendHighest(const Item& item) {
+	HighestMessage highMsg;
+	highMsg.itemNum = item.getItemID();
+	highMsg.amount = item.getCurrentHighest();
+
+	Packet packet = serializeMessage(highMsg);
+
+	// Send to everyone registered
+	for (auto& pair : m_connections) {
+		Connection& connection = pair.second;
+		if (connection.isConnected()) {
+			connection.send(packet);
+			log(LogType::LOG_SEND, highMsg.type, connection.getAddress());
+		}
+	}
+}
+
 void Server::startAuction(const Item& item) {
 	std::lock_guard<std::mutex> lock(g_auctionLock);
 
@@ -153,7 +170,8 @@ void Server::startAuction(const Item& item) {
 	m_offeredItems[item.getItemID()] = newItem;
 
 	log("[INFO] Starting auction for item number %u with a min bid of %.2f", item.getItemID(), item.getMinimum());
-	
+	sendNewItem(item);
+
 	std::pair<Server*, Item*>* pair = new std::pair<Server*, Item*>(this, newItem);
 	ThreadPool::get()->submitTimer([](PTP_CALLBACK_INSTANCE instance, PVOID arg, PTP_TIMER timer) {
 		std::pair<Server*, Item*>* inPair = reinterpret_cast<std::pair<Server*, Item*>*>(arg);
@@ -161,7 +179,7 @@ void Server::startAuction(const Item& item) {
 		Item* finishedItem = inPair->second;
 
 		inPair->first->endAuction(*finishedItem);
-		log("[INFO] Auction ended for item number %u with a price of %.2f", finishedItem->getItemID(), 0.0f);
+		log("[INFO] Auction ended for item number %u with a price of %.2f", finishedItem->getItemID(), finishedItem->getCurrentHighest());
 
 		delete finishedItem;
 		delete inPair;
@@ -169,12 +187,25 @@ void Server::startAuction(const Item& item) {
 	}, pair);
 }
 
+void Server::bid(uint32 itemID, float32 newBid, const IPV4Address& bidder) {
+	std::lock_guard<std::mutex> lock(g_auctionLock);
+
+	auto iter = m_offeredItems.find(itemID);
+	if (iter != m_offeredItems.end()) {
+		Item* item = iter->second;
+		if (newBid > item->getCurrentHighest() && item->getSeller().getSocketAddressAsString() != bidder.getSocketAddressAsString()) {
+			item->setCurrentHighest(newBid);
+			sendHighest(*item);
+		}
+	}
+}
+
 void Server::endAuction(const Item& item) {
 	std::lock_guard<std::mutex> lock(g_auctionLock);
 
 	m_offeredItems.erase(item.getItemID());
 
-	// SEND UDP PACKETS
+	// SEND TCP PACKETS
 }
 
 void Server::handlePacket(const Packet& packet) {
@@ -190,6 +221,10 @@ void Server::handlePacket(const Packet& packet) {
 		break;
 	case MessageType::MSG_OFFER:
 		handleOfferPacket(packet);
+		break;
+	case MessageType::MSG_BID:
+		handleBidPacket(packet);
+		break;
 	}
 
 }
@@ -241,7 +276,7 @@ void Server::handleOfferPacket(const Packet& packet) {
 
 		if (msg.reqNum > connection.getOfferReqNumber()) {
 			// Client offering new item
-			Item item(std::string(msg.description), msg.minimum);
+			Item item(std::string(msg.description), msg.minimum, connection.getAddress());
 
 			connection.setLastItemOfferedID(item.getItemID());
 			connection.setOfferReqNumber(msg.reqNum);
@@ -268,6 +303,11 @@ void Server::handleOfferPacket(const Packet& packet) {
 		// Client not registered
 		sendOfferDenied(msg.reqNum, "User not registered", packet.getAddress());
 	}
+}
+
+void Server::handleBidPacket(const Packet& packet) {
+	BidMessage bidMsg = deserializeMessage<BidMessage>(packet);
+	bid(bidMsg.itemNum, bidMsg.amount, packet.getAddress());
 }
 
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
@@ -342,7 +382,7 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 			// shutdown
 			break;
 		}
-		std::cout << "Accepted connection..." << std::endl;
+		//std::cout << "Accepted connection..." << std::endl;
 
 		SOCKET socketHandle = server->m_serverTCPSocket.getWinSockSocket();
 		int32 resultOpt = setsockopt(acceptedSocket.getWinSockSocket(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, reinterpret_cast<char*>(&socketHandle), sizeof(socketHandle));
@@ -352,7 +392,7 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 		}
 
 		IPV4Address peerAddress = acceptedSocket.getPeerAddress();
-		std::cout << peerAddress.getSocketAddressAsString() << std::endl;
+		//std::cout << peerAddress.getSocketAddressAsString() << std::endl;
 		auto connectionIter = server->m_connections.find(peerAddress.getSocketAddressAsString());
 		if (connectionIter != server->m_connections.end()) {
 			connectionIter->second.connect(std::move(acceptedSocket), server->m_connectionServiceIOPort);
@@ -412,12 +452,10 @@ void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, P
 
 		OverlappedBuffer& buffer = connection->getOverlappedBuffer();
 		Packet packet(buffer.getData(), numBytes);
-		
-		// Get this from Connection
-		//packet.setAddress(buffer.getAddress());
+		packet.setAddress(connection->getAddress());
 
 		// Handle packet
-		std::cout << "PIIINIGNIGNGINGIGNI" << std::endl;
+		server->handlePacket(packet);
 	}
 	log("[INFO] Connection service routine shutdown.");
 }

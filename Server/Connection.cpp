@@ -39,3 +39,7 @@ void Connection::shutdown() {
 		m_state = ConnectionState::DISCONNECTED;
 	}
 }
+
+void Connection::send(const Packet& packet) {
+	m_tcpSocket->send(packet);
+}
