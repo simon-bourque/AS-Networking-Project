@@ -242,6 +242,7 @@ void Server::bid(uint32 itemID, float32 newBid, const IPV4Address& bidder) {
 		if (newBid > item->getCurrentHighest()) {
 			if (item->getSeller().getSocketAddressAsString() != bidder.getSocketAddressAsString()) {
 				item->setCurrentHighest(newBid);
+				item->setHighestBidder(bidder);
 				sendHighest(*item);
 			}
 			else {

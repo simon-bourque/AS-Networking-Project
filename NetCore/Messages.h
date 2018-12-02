@@ -133,6 +133,7 @@ struct HighestMessage {
 	const MessageType type = MessageType::MSG_HIGHEST;
 	uint32 itemNum;
 	float32 amount;
+	char description[DESCLENGTH];
 };
 
 struct WinMessage {
