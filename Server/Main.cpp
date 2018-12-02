@@ -26,6 +26,12 @@ BOOL WINAPI closeRoutine(_In_ DWORD ctrlType) {
 
 int main() {
 	SetConsoleCtrlHandler(closeRoutine, true);
+	HANDLE inputHandle = GetStdHandle(STD_INPUT_HANDLE);
+	if (inputHandle != INVALID_HANDLE_VALUE) {
+		DWORD mode = 0;
+		GetConsoleMode(inputHandle, &mode);
+		SetConsoleMode(inputHandle, mode & (~ENABLE_QUICK_EDIT_MODE));
+	}
 
 	std::cout << "Local ip: ";
 	std::string ip;
