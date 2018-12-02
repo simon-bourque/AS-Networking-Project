@@ -656,12 +656,8 @@ void Client::sendBid() {
 		Packet packet = serializeMessage(bidMsg);
 		packet.setAddress(_serverIpv4);
 
-		// Attempting and waiting on server for offer response
-		for (uint32 i = 0; i < NUMBEROFTRIES; i++)
-		{
-			_tcpSocket->send(packet);
-			log(LogType::LOG_SEND, bidMsg.type, _serverIpv4);
-		}
+		_tcpSocket->send(packet);
+		log(LogType::LOG_SEND, bidMsg.type, _serverIpv4);
 	}
 	else
 	{
