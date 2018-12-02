@@ -50,6 +50,8 @@ private:
 	void sendOfferDenied(uint32 reqNum, const std::string& reason, const IPV4Address& address);
 	void sendNewItem(const Item& item);
 	void sendHighest(const Item& item);
+	void sendWin(const Item& item);
+	void sendBidOver(const Item& item);
 
 public:
 	Server(const IPV4Address& bindAddress);

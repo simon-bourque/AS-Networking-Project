@@ -37,6 +37,7 @@ public:
 
 	OverlappedBuffer& getOverlappedBuffer() { return m_overlappedBuffer; }
 	const IPV4Address& getAddress() const { return m_address; }
+	std::string getUniqueName() const { return m_uniqueName; }
 
 	bool isConnected() const { return m_state == ConnectionState::CONNECTED; }
 
@@ -47,5 +48,6 @@ public:
 	uint32 getLastItemOfferedID() const { return m_lastItemOfferedID; }
 
 	void send(const Packet& packet);
+	void receiveOverlapped();
 };
 

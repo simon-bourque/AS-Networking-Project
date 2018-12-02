@@ -43,3 +43,7 @@ void Connection::shutdown() {
 void Connection::send(const Packet& packet) {
 	m_tcpSocket->send(packet);
 }
+
+void Connection::receiveOverlapped() {
+	m_tcpSocket->receiveOverlapped(m_overlappedBuffer);
+}

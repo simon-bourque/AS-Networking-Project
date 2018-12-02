@@ -163,6 +163,52 @@ void Server::sendHighest(const Item& item) {
 	}
 }
 
+void Server::sendWin(const Item& item) {
+	WinMessage winMsg;
+	winMsg.itemNum = item.getItemID();
+	winMsg.amount = item.getCurrentHighest();
+	winMsg.port[0] = '\0';
+
+	// Get seller connection
+	auto iter = m_connections.find(item.getSeller().getSocketAddressAsString());
+	if (iter != m_connections.end()) {
+		Connection& connection = iter->second;
+		memcpy(winMsg.name, connection.getUniqueName().c_str(), connection.getUniqueName().size() + 1);
+		memcpy(winMsg.iPAddress, connection.getAddress().getSocketAddressAsString().c_str(), connection.getAddress().getSocketAddressAsString().size() + 1);
+	}
+	else {
+		winMsg.name[0] = '\0';
+		winMsg.iPAddress[0] = '\0';
+	}
+
+	auto iter2 = m_connections.find(item.getHighestBidder().getSocketAddressAsString());
+	if (iter2 != m_connections.end()) {
+		Connection& winner = iter2->second;
+		if (winner.isConnected()) {
+			Packet packet = serializeMessage(winMsg);
+			winner.send(packet);
+			log(LogType::LOG_SEND, winMsg.type, winner.getAddress());
+		}
+	}
+}
+
+void Server::sendBidOver(const Item& item) {
+	BidOverMessage bidOverMsg;
+	bidOverMsg.itemNum = item.getItemID();
+	bidOverMsg.amount = item.getCurrentHighest();
+
+	Packet packet = serializeMessage(bidOverMsg);
+
+	// Send to everyone registered
+	for (auto& pair : m_connections) {
+		Connection& connection = pair.second;
+		if (connection.isConnected()) {
+			connection.send(packet);
+			log(LogType::LOG_SEND, bidOverMsg.type, connection.getAddress());
+		}
+	}
+}
+
 void Server::startAuction(const Item& item) {
 	std::lock_guard<std::mutex> lock(g_auctionLock);
 
@@ -193,10 +239,21 @@ void Server::bid(uint32 itemID, float32 newBid, const IPV4Address& bidder) {
 	auto iter = m_offeredItems.find(itemID);
 	if (iter != m_offeredItems.end()) {
 		Item* item = iter->second;
-		if (newBid > item->getCurrentHighest() && item->getSeller().getSocketAddressAsString() != bidder.getSocketAddressAsString()) {
-			item->setCurrentHighest(newBid);
-			sendHighest(*item);
+		if (newBid > item->getCurrentHighest()) {
+			if (item->getSeller().getSocketAddressAsString() != bidder.getSocketAddressAsString()) {
+				item->setCurrentHighest(newBid);
+				sendHighest(*item);
+			}
+			else {
+				log("[INFO] Client attempting to bid on own item %u, ignoring bid", itemID);
+			}
 		}
+		else {
+			log("[INFO] New bid of %.2f below current bid for item %u, ignoring bid", newBid, itemID);
+		}
+	}
+	else {
+		log("[INFO] Item %u not up for auction, ignoring bid", itemID);
 	}
 }
 
@@ -206,6 +263,8 @@ void Server::endAuction(const Item& item) {
 	m_offeredItems.erase(item.getItemID());
 
 	// SEND TCP PACKETS
+	sendWin(item);
+	sendBidOver(item);
 }
 
 void Server::handlePacket(const Packet& packet) {
@@ -456,6 +515,8 @@ void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, P
 
 		// Handle packet
 		server->handlePacket(packet);
+
+		connection->receiveOverlapped();
 	}
 	log("[INFO] Connection service routine shutdown.");
 }

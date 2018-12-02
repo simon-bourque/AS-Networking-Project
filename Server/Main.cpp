@@ -25,7 +25,10 @@ BOOL WINAPI closeRoutine(_In_ DWORD ctrlType) {
 }
 
 int main() {
+	// Set callback when console is closed
 	SetConsoleCtrlHandler(closeRoutine, true);
+
+	// Disable console selection
 	HANDLE inputHandle = GetStdHandle(STD_INPUT_HANDLE);
 	if (inputHandle != INVALID_HANDLE_VALUE) {
 		DWORD mode = 0;
