@@ -400,7 +400,21 @@ void Client::startTCPWatching() {
 						log("Item #: %u", itemNum);
 						log("New amount: %.2f", newAmount);
 
-						removeBid(itemNum);
+						if (_offers.find(itemNum) == _offers.end()) {
+							// This highest message is for an item this client owns
+							// Update the client's offers
+							updateOffers(itemNum, {"", newAmount });
+
+							if ((_bids.find(itemNum) == _bids.end())) {
+								// This client just bid on his own item, what a jackass
+								updateBids(itemNum, { "", newAmount });
+							}
+						}
+						else if (_bids.find(highestMsg.itemNum) == _bids.end()) {
+							// You just got outbidded
+							removeBid(itemNum);
+						}
+
 						updateAH(itemNum, { "", newAmount });
 
 						break;
@@ -645,15 +659,8 @@ void Client::sendBid() {
 		// Attempting and waiting on server for offer response
 		for (uint32 i = 0; i < NUMBEROFTRIES; i++)
 		{
-			_udpSocket.send(packet);
-			addUDPAck(bidMsg.reqNum);
+			_tcpSocket->send(packet);
 			log(LogType::LOG_SEND, bidMsg.type, _serverIpv4);
-
-			wait();
-
-			// Checking ACK receipt
-			if (_udpAck.find(bidMsg.reqNum) == _udpAck.end()) break;
-			else log(s_notAck);
 		}
 	}
 	else
@@ -709,7 +716,7 @@ void Client::printWonItems() {
 	log("Description\tItem Number\tAmount");
 	// Print items this client has won
 	for (const auto& item : _wonItems) {
-		log("%s\t%u\t%.2f", item.second.description, item.first, item.second.amount);
+		log("%s\t%u\t%.2f", item.second.description.c_str(), item.first, item.second.amount);
 	}
 
 	// Go back to main menu
