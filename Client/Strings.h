@@ -1,6 +1,6 @@
 #pragma once
 
-static char constexpr s_mainMenuString[] = "\n0.Register\n1.Deregister\n2.Send Offer\n3.Send Bid\n4.Display Offers\n5.Display Bids\n6.Display Won Items\n7.Display Auction House\n8.Disconnect";
+static char constexpr s_mainMenuString[] = "\n0.Register\n1.Deregister\n2.Send Offer\n3.Send Bid\n4.Display Offers\n5.Display Won Items\n6.Display Auction House\n7.Disconnect";
 static char constexpr s_separator[] = "=============================================================";
 
 // Errors

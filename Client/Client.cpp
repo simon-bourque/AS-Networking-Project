@@ -68,12 +68,10 @@ void Client::printMainMenu()
 	case 4:
 		_state = ClientState::DISPLAYING_OFFERS; break;
 	case 5:
-		_state = ClientState::DISPLAYING_BIDS; break;
-	case 6:
 		_state = ClientState::DISPLAYING_WON_ITEMS; break;
-	case 7:
+	case 6:
 		_state = ClientState::DISPLAYING_AH; break;
-	case 8:
+	case 7:
 		_state = ClientState::DISCONNECTING; break;
 	default:
 		_state = ClientState::MAIN_MENU;
@@ -94,8 +92,6 @@ void Client::interpretState()
 		sendBid(); break;
 	case ClientState::DISPLAYING_OFFERS:
 		printOffers(); break;
-	case ClientState::DISPLAYING_BIDS:
-		printBids(); break;
 	case ClientState::DISPLAYING_WON_ITEMS:
 		printWonItems(); break;
 	case ClientState::DISPLAYING_AH:
@@ -138,40 +134,6 @@ void Client::removeAH(uint32 itemNum) {
 	else {
 		// Previous bid was not found, wtf happened
 		log(s_ahNotFound);
-	}
-}
-
-void Client::updateBids(uint32 itemNum, Item newItem) {
-	std::lock_guard<std::mutex> lock(_bidsMtx);
-
-	// Removing previous bid from bid table
-	auto it = _bids.find(itemNum);
-	if (it != _bids.end()) {
-		// Previous bid was found, update it
-		if (it->second.description == "") {
-			// We don't have a description, try to update it
-			it->second.description = newItem.description;
-		}
-		it->second.amount = newItem.amount;
-	}
-	else {
-		// Previous bid was not found, add it
-		_bids[itemNum] = { newItem.description, newItem.amount };
-	}
-}
-
-void Client::removeBid(uint32 itemNum) {
-	std::lock_guard<std::mutex> lock(_bidsMtx);
-
-	// Removing previous bid from bid table
-	auto it = _bids.find(itemNum);
-	if (it != _bids.end()) {
-		// Previous bid was found, remove it
-		_bids.erase(it);
-	}
-	else {
-		// Previous bid was not found, wtf happened
-		log(s_bidNotFound);
 	}
 }
 
@@ -398,22 +360,11 @@ void Client::startTCPWatching() {
 						log("Item #: %u", itemNum);
 						log("New amount: %.2f", newAmount);
 
-						if (_offers.find(itemNum) != _offers.end()) {
-							// This highest message is for an item this client owns
-							// Update the client's offers
-							updateOffers(itemNum, {"", newAmount });
-
-							if ((_bids.find(itemNum) != _bids.end())) {
-								// This client just bid on his own item, what a jackass
-								updateBids(itemNum, { "", newAmount });
-							}
-						}
-						else if (_bids.find(itemNum) != _bids.end()) {
-							// You just got outbidded
-							removeBid(itemNum);
-						}
-
 						updateAH(itemNum, { "", newAmount });
+
+						if (_offers.find(itemNum) != _offers.end()) {
+							updateOffers(itemNum, { "", newAmount });
+						}
 
 						break;
 					}
@@ -445,8 +396,6 @@ void Client::startTCPWatching() {
 
 						// Remove item from AH
 						removeAH(bidOverMsg.itemNum);
-						// Remove item from bids
-						removeBid(bidOverMsg.itemNum);
 
 						break;
 					}
@@ -659,24 +608,13 @@ void Client::sendBid() {
 		packet.setAddress(_serverIpv4);
 
 		_tcpSocket->send(packet);
+
 		log(LogType::LOG_SEND, bidMsg.type, _serverIpv4);
 	}
 	else
 	{
 		// Not registered
 		log(s_notReg);
-	}
-
-	// Go back to main menu
-	_state = ClientState::MAIN_MENU;
-}
-
-void Client::printBids() {
-	log("%s's current bids:", _uniqueName.c_str());
-	log("Description\tItem Number\tAmount");
-	// Print bids this client has put on items other than their own
-	for (const auto& bid : _bids) {
-		log("%s\t%u\t%.2f", bid.second.description.c_str(), bid.first, bid.second.amount);
 	}
 
 	// Go back to main menu

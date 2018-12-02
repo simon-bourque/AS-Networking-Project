@@ -23,7 +23,6 @@ private:
 		SENDING_OFFER,
 		SENDING_BID,
 		DISPLAYING_OFFERS,
-		DISPLAYING_BIDS,
 		DISPLAYING_WON_ITEMS,
 		DISPLAYING_AH,
 		DISCONNECTING
@@ -45,7 +44,6 @@ private:
 
 	void disconnect();
 
-	void printBids();
 	void printOffers();
 	void printWonItems();
 	void printAH();
@@ -56,8 +54,6 @@ private:
 	void updateItemsWon(uint32 itemNum, Item itemWon);
 	void updateOffers(uint32 itemNum, Item newOffer);
 	void removeOffer(uint32 itemNum);
-	void updateBids(uint32 itemNum, Item newBid);
-	void removeBid(uint32 itemNum);
 	void updateAH(uint32 itemNum, Item newItem);
 	void removeAH(uint32 itemNum);
 
@@ -79,7 +75,6 @@ private:
 
 	std::unordered_map<uint32, Item> _wonItems; // Items that this client won
 	std::unordered_map<uint32, Item> _offers; // Items the client is currently selling
-	std::unordered_map<uint32, Item> _bids; // Items that the client has bid on
 	std::unordered_map<uint32, Item> _auctionHouse; // Items available at the auction house
 	
 	std::mutex _udpAckMtx;
