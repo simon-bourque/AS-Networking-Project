@@ -131,10 +131,6 @@ void Client::removeAH(uint32 itemNum) {
 		// Previous bid was found, remove it
 		_auctionHouse.erase(it);
 	}
-	else {
-		// Previous bid was not found, wtf happened
-		log(s_ahNotFound);
-	}
 }
 
 void Client::updateOffers(uint32 itemNum, Item newItem) {
