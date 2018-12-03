@@ -173,7 +173,7 @@ void Server::sendWin(const Item& item) {
 	winMsg.port[0] = '\0';
 
 	// Get seller connection
-	auto iter = m_connections.find(item.getSeller().getSocketAddressAsString());
+	auto iter = m_connections.find(item.getSeller());
 	if (iter != m_connections.end()) {
 		Connection& connection = iter->second;
 		memcpy(winMsg.name, connection.getUniqueName().c_str(), connection.getUniqueName().size() + 1);
@@ -184,7 +184,7 @@ void Server::sendWin(const Item& item) {
 		winMsg.iPAddress[0] = '\0';
 	}
 
-	auto iter2 = m_connections.find(item.getHighestBidder().getSocketAddressAsString());
+	auto iter2 = m_connections.find(item.getHighestBidder());
 	if (iter2 != m_connections.end()) {
 		Connection& winner = iter2->second;
 		if (winner.isConnected()) {
@@ -219,7 +219,7 @@ void Server::sendSoldTo(const Item& item) {
 	soldToMsg.port[0] = '\0';
 
 	// Get winner connection
-	auto iter = m_connections.find(item.getHighestBidder().getSocketAddressAsString());
+	auto iter = m_connections.find(item.getHighestBidder());
 	if (iter != m_connections.end()) {
 		Connection& connection = iter->second;
 		memcpy(soldToMsg.name, connection.getUniqueName().c_str(), connection.getUniqueName().size() + 1);
@@ -230,7 +230,7 @@ void Server::sendSoldTo(const Item& item) {
 		soldToMsg.iPAddress[0] = '\0';
 	}
 
-	auto iter2 = m_connections.find(item.getSeller().getSocketAddressAsString());
+	auto iter2 = m_connections.find(item.getSeller());
 	if (iter2 != m_connections.end()) {
 		Connection& seller = iter2->second;
 		if (seller.isConnected()) {
@@ -247,7 +247,7 @@ void Server::sendNotSold(const Item& item) {
 	memcpy(notSoldMsg.reason, "No valid bids", 14);
 
 	// Find seller
-	auto iter = m_connections.find(item.getSeller().getSocketAddressAsString());
+	auto iter = m_connections.find(item.getSeller());
 	if (iter != m_connections.end()) {
 		Connection& seller = iter->second;
 		if (seller.isConnected()) {
@@ -258,7 +258,7 @@ void Server::sendNotSold(const Item& item) {
 	}
 }
 
-void Server::startAuction(const Item& item) {
+void Server::startAuction(const Item& item, uint64 auctionTime) {
 	std::lock_guard<std::mutex> lock(g_auctionLock);
 
 	Item* newItem = new Item(item);
@@ -268,6 +268,12 @@ void Server::startAuction(const Item& item) {
 	sendNewItem(item);
 
 	std::pair<Server*, Item*>* pair = new std::pair<Server*, Item*>(this, newItem);
+
+	FILETIME fileTime;
+	GetSystemTimeAsFileTime(&fileTime);
+	ULARGE_INTEGER* time = reinterpret_cast<ULARGE_INTEGER*>(&fileTime);
+	newItem->setAuctionStartTime(time->QuadPart);
+
 	ThreadPool::get()->submitTimer([](PTP_CALLBACK_INSTANCE instance, PVOID arg, PTP_TIMER timer) {
 		std::pair<Server*, Item*>* inPair = reinterpret_cast<std::pair<Server*, Item*>*>(arg);
 		Server* server = inPair->first;
@@ -279,17 +285,17 @@ void Server::startAuction(const Item& item) {
 		delete finishedItem;
 		delete inPair;
 		CloseThreadpoolTimer(timer);
-	}, pair);
+	}, pair, auctionTime);
 }
 
-void Server::bid(uint32 itemID, float32 newBid, const IPV4Address& bidder) {
+void Server::bid(uint32 itemID, float32 newBid, const std::string& bidder) {
 	std::lock_guard<std::mutex> lock(g_auctionLock);
 
 	auto iter = m_offeredItems.find(itemID);
 	if (iter != m_offeredItems.end()) {
 		Item* item = iter->second;
 		if (newBid > item->getCurrentHighest()) {
-			if (item->getSeller().getSocketAddressAsString() != bidder.getSocketAddressAsString()) {
+			if (item->getSeller() != bidder) {
 				item->setCurrentHighest(newBid);
 				item->setHighestBidder(bidder);
 				sendHighest(*item);
@@ -395,7 +401,7 @@ void Server::handleOfferPacket(const Packet& packet) {
 
 		if (msg.reqNum > connection.getOfferReqNumber()) {
 			// Client offering new item
-			Item item(std::string(msg.description), msg.minimum, connection.getAddress());
+			Item item(std::string(msg.description), msg.minimum, connection.getAddress().getSocketAddressAsString());
 
 			connection.setLastItemOfferedID(item.getItemID());
 			connection.setOfferReqNumber(msg.reqNum);
@@ -426,7 +432,7 @@ void Server::handleOfferPacket(const Packet& packet) {
 
 void Server::handleBidPacket(const Packet& packet) {
 	BidMessage bidMsg = deserializeMessage<BidMessage>(packet);
-	bid(bidMsg.itemNum, bidMsg.amount, packet.getAddress());
+	bid(bidMsg.itemNum, bidMsg.amount, packet.getAddress().getSocketAddressAsString());
 }
 
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
@@ -600,6 +606,24 @@ void Server::saveConnections() {
 		output << connection.getLastItemOfferedID() << '\n';
 	}
 
+	output << m_offeredItems.size() << '\n';
+
+	for (auto& pair : m_offeredItems) {
+		Item* item = pair.second;
+
+		output << item->getItemID() << '\n';
+		output << item->getDescription() << '\n';
+		output << item->getMinimum() << '\n';
+		output << item->getCurrentHighest() << '\n';
+		output << item->getSeller() << '\n';
+		output << item->getHighestBidder() << '\n';
+
+		FILETIME fileTime;
+		GetSystemTimeAsFileTime(&fileTime);
+		ULARGE_INTEGER* time = reinterpret_cast<ULARGE_INTEGER*>(&fileTime);
+		output << time->QuadPart - item->getAuctionStartTime() << '\n';
+	}
+
 	output.close();
 }
 
@@ -630,6 +654,42 @@ void Server::loadConnections() {
 		connection.setOfferReqNumber(reqNum);
 		connection.setLastItemOfferedID(lastItemID);
 		m_connections[ip] = connection;
+	}
+
+	int32 numItems = 0;
+	input >> numItems;
+
+	uint32 highestID = 1;
+
+	for (int32 i = 0; i < numItems; i++) {
+		uint32 itemId = 0;
+		std::string description;
+		float32 minimum = 0.0f;
+		float32 currentHighest = 0.0f;
+		std::string seller;
+		std::string highestBidder;
+		uint64 time = 0;
+
+		std::string wtfstr;
+
+		input >> itemId;
+		std::getline(input, wtfstr); // whyyyyy
+		std::getline(input, description);
+		input >> minimum;
+		input >> currentHighest;
+		std::getline(input, wtfstr); // whyyyyy
+		std::getline(input, seller);
+		std::getline(input, highestBidder);
+		input >> time;
+
+		Item item(description, minimum, seller, itemId);
+		item.setCurrentHighest(currentHighest);
+		item.setHighestBidder(highestBidder);
+
+		if (itemId > highestID) {
+			highestID = itemId;
+		}
+		startAuction(item, 3000000000ull - time);
 	}
 
 	input.close();
