@@ -236,6 +236,7 @@ void Client::startUDPWatching() {
 							log(unregMsg.reason);
 
 							removeUDPAck(unregMsg.reqNum);
+							_registered = false;
 						}
 						else log(s_wrongAck);
 						break;
@@ -453,10 +454,6 @@ void wait() {
 void Client::sendRegister() {
 	if (!_registered)
 	{
-		// Making sure the two watch threads are closed
-		if (_udpWatch.joinable()) _udpWatch.join();
-		if (_tcpWatch.joinable()) _tcpWatch.join();
-
 		RegisterMessage registerMsg;
 		registerMsg.reqNum = s_reqNum++;
 		memcpy(registerMsg.name, _uniqueName.c_str(), _uniqueName.size() + 1);
@@ -469,6 +466,10 @@ void Client::sendRegister() {
 		// Attempting and waiting on server for register response
 		for (uint32 i = 0; i < NUMBEROFTRIES; i++)
 		{
+			// Making sure the two watch threads are closed
+			if (_udpWatch.joinable()) _udpWatch.join();
+			if (_tcpWatch.joinable()) _tcpWatch.join();
+
 			_registered = true; // Temporary registration
 
 			_udpSocket.send(packet);
@@ -482,7 +483,9 @@ void Client::sendRegister() {
 
 			// Checking ACK receipt
 			if (_udpAck.find(registerMsg.reqNum) == _udpAck.end()) {
-				startTCPWatching();
+				// We received an ACK
+				if(_registered)	startTCPWatching(); // We got an reg conf
+				else {} // We got an unregistered
 				break;
 			}
 			else {
