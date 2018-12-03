@@ -526,9 +526,12 @@ void Client::sendDeregister() {
 
 			// Checking ACK receipt
 			if (_udpAck.find(deregMsg.reqNum) == _udpAck.end()) {
-				// Ending watch threads because no longer registered
-				_udpWatch.join();
-				_tcpWatch.join();
+				if (!_registered) {
+					// Ending watch threads because no longer registered
+					_udpWatch.join();
+					_tcpWatch.join();
+				}
+				else {} // We got a dereg denied
 				break;
 			}
 			else log(s_notAck);
