@@ -369,6 +369,20 @@ bool Server::isHighestBidder(const std::string& bidder) {
 	return false;
 }
 
+int32 Server::getNumOffers(const std::string& seller) {
+	std::lock_guard<std::mutex> lock(g_auctionLock);
+
+	int32 count = 0;
+	for (auto& pair : m_offeredItems) {
+		Item* item = pair.second;
+		if (item->getSeller() == seller) {
+			count++;
+		}
+	}
+
+	return count;
+}
+
 void Server::handlePacket(const Packet& packet) {
 	MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
 	log(LogType::LOG_RECEIVE, type, packet.getAddress());
@@ -397,7 +411,7 @@ void Server::handleRegisterPacket(const Packet& packet) {
 	// Check if same name
 	for (auto& pair : m_connections) {
 		Connection& connection = pair.second;
-		if (name == connection.getUniqueName()) {
+		if (name == connection.getUniqueName() && connection.getAddress().getSocketAddressAsString() != packet.getAddress().getSocketAddressAsString()) {
 			sendUnregistered(msg.reqNum, "Name already exists", packet.getAddress());
 			return;
 		}
@@ -455,6 +469,11 @@ void Server::handleOfferPacket(const Packet& packet) {
 
 	if (connected) {
 		Connection& connection = (*iter).second;
+
+		if (getNumOffers(packet.getAddress().getSocketAddressAsString()) >= 3) {
+			sendOfferDenied(msg.reqNum, "Too many offers (max 3)", packet.getAddress());
+			return;
+		}
 
 		if (msg.reqNum > connection.getOfferReqNumber()) {
 			// Client offering new item

@@ -37,6 +37,8 @@ void Connection::shutdown() {
 		m_tcpSocket->shutdown();
 		m_tcpSocket->close();
 		m_state = ConnectionState::DISCONNECTED;
+		m_offerReqNumber = 0;
+		m_lastItemOfferedID = 0;
 	}
 }
 

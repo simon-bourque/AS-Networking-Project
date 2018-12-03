@@ -71,6 +71,7 @@ public:
 	void endAuction(const Item& item);
 	bool isSeller(const std::string& seller);
 	bool isHighestBidder(const std::string& bidder);
+	int32 getNumOffers(const std::string& seller);
 
 	void saveConnections();
 	void loadConnections();
