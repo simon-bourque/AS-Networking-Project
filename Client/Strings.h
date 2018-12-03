@@ -11,7 +11,7 @@ static char constexpr s_serverErrorTCP[] = "[ERROR] Server error during TCP watc
 static char constexpr s_tcpError[] = "[ERROR] An error occured while receiving a TCP packet";
 static char constexpr s_wrongAck[]= "[ERROR] Received acknowledgement of wrong request";
 static char constexpr s_notAck[] = "[ERROR] Sent packet was not acknowledged";
-static char constexpr s_tcpForceClosed[] = "\n[ERROR] Remote connection was forcibly closed. You are now unregistered.";
+static char constexpr s_tcpForceClosed[] = "\n[ERROR] Remote connection was forcibly closed.";
 
 // Info
 static char constexpr s_tcpClosed[] = "[INFO] TCP Connection was gracefully closed.";

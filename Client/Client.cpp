@@ -351,15 +351,16 @@ void Client::startTCPWatching() {
 
 						uint32 itemNum = highestMsg.itemNum;
 						float32 newAmount = highestMsg.amount;
+						std::string description = highestMsg.description;
 
 						log(s_highest);
 						log("Item #: %u", itemNum);
 						log("New amount: %.2f", newAmount);
 
-						updateAH(itemNum, { "", newAmount });
+						updateAH(itemNum, { description, newAmount });
 
 						if (_offers.find(itemNum) != _offers.end()) {
-							updateOffers(itemNum, { "", newAmount });
+							updateOffers(itemNum, { description, newAmount });
 						}
 
 						break;
@@ -452,6 +453,10 @@ void wait() {
 void Client::sendRegister() {
 	if (!_registered)
 	{
+		// Making sure the two watch threads are closed
+		if (_udpWatch.joinable()) _udpWatch.join();
+		if (_tcpWatch.joinable()) _tcpWatch.join();
+
 		RegisterMessage registerMsg;
 		registerMsg.reqNum = s_reqNum++;
 		memcpy(registerMsg.name, _uniqueName.c_str(), _uniqueName.size() + 1);
@@ -470,6 +475,7 @@ void Client::sendRegister() {
 			addUDPAck(registerMsg.reqNum);
 			log(LogType::LOG_SEND, MessageType::MSG_REGISTER, _serverIpv4);
 
+			// If UDP watch is already running, no need to restart it
 			startUDPWatching();
 
 			wait();
@@ -481,7 +487,6 @@ void Client::sendRegister() {
 			}
 			else {
 				_registered = false; // Revoke registration as we have not received an acknowledgement
-				_udpWatch.join();
 				log(s_notAck);
 			}
 		}
