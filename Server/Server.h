@@ -65,8 +65,8 @@ public:
 
 	void shutdown();
 
-	void startAuction(const Item& item);
-	void bid(uint32 itemID, float32 newBid, const IPV4Address& bidder);
+	void startAuction(const Item& item, uint64 auctionTime = 3000000000ull);
+	void bid(uint32 itemID, float32 newBid, const std::string& bidder);
 	void endAuction(const Item& item);
 
 	void saveConnections();

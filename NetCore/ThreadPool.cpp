@@ -1,6 +1,5 @@
 #include "ThreadPool.h"
 
-#include "Types.h"
 #include <iostream>
 #include <string>
 
@@ -34,13 +33,13 @@ PTP_WORK ThreadPool::submit(ThreadExecutionFunc func, void* ptr) {
 	return workObject;
 }
 
-PTP_TIMER ThreadPool::submitTimer(TimerCallback func, void* ptr) {
+PTP_TIMER ThreadPool::submitTimer(TimerCallback func, void* ptr, uint64 auctionTime) {
 	PTP_TIMER timerObject = CreateThreadpoolTimer(func, ptr, &m_callbackEnvironment);
 
 	FILETIME fileTime;
 	GetSystemTimeAsFileTime(&fileTime);
 	ULARGE_INTEGER* time = reinterpret_cast<ULARGE_INTEGER*>(&fileTime);
-	time->QuadPart += 3000000000ull;
+	time->QuadPart += auctionTime;
 
 	SetThreadpoolTimer(timerObject, &fileTime, 0, 0);
 
