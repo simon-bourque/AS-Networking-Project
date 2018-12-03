@@ -298,6 +298,8 @@ void Server::startAuction(const Item& item, uint64 auctionTime) {
 		delete inPair;
 		CloseThreadpoolTimer(timer);
 	}, pair, auctionTime);
+
+	saveConnections();
 }
 
 void Server::bid(uint32 itemID, float32 newBid, const std::string& bidder) {
@@ -329,6 +331,7 @@ void Server::endAuction(const Item& item) {
 	std::lock_guard<std::mutex> lock(g_auctionLock);
 
 	m_offeredItems.erase(item.getItemID());
+	saveConnections();
 
 	// SEND TCP PACKETS
 	sendBidOver(item);
@@ -428,6 +431,7 @@ void Server::handleRegisterPacket(const Packet& packet) {
 		iter->second.setUniqueName(msg.name);
 		iter->second.setAddress(packet.getAddress());
 	}
+	saveConnections();
 
 	sendRegistered(msg.reqNum, std::string(msg.name), std::string(msg.iPAddress), std::string(msg.port), packet.getAddress());
 }
@@ -453,6 +457,8 @@ void Server::handleDeregisterPacket(const Packet& packet) {
 
 		(*it).second.shutdown();
 		m_connections.erase(it);
+
+		saveConnections();
 	}
 	else
 	{
