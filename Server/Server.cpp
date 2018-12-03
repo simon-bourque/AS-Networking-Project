@@ -78,6 +78,18 @@ void Server::sendRegistered(uint32 reqNum, const std::string& name, const std::s
 	log(LogType::LOG_SEND, registeredMsg.type, registeredPacket.getAddress());
 }
 
+void Server::sendUnregistered(uint32 reqNum, const std::string& reason, const IPV4Address& address) {
+	UnregisteredMessage unregisteredMsg;
+	unregisteredMsg.reqNum = reqNum;
+	memcpy(unregisteredMsg.reason, reason.c_str(), reason.size() + 1);
+
+	Packet packet = serializeMessage(unregisteredMsg);
+	packet.setAddress(address);
+
+	m_serverUDPSocket.send(packet);
+	log(LogType::LOG_SEND, unregisteredMsg.type, packet.getAddress());
+}
+
 void Server::sendDeregConf(uint32 reqNum, const IPV4Address& address) {
 	DeregConfMessage deregConfMsg;
 	deregConfMsg.reqNum = reqNum;
@@ -92,7 +104,7 @@ void Server::sendDeregConf(uint32 reqNum, const IPV4Address& address) {
 void Server::sendDeregDenied(uint32 reqNum, const std::string& reason, const IPV4Address& address) {
 	DeregDeniedMessage deregDeniedMsg;
 	deregDeniedMsg.reqNum = reqNum;
-	memcpy(deregDeniedMsg.reason, reason.c_str(), reason.size());
+	memcpy(deregDeniedMsg.reason, reason.c_str(), reason.size() + 1);
 
 	Packet deregDeniedPacket = serializeMessage(deregDeniedMsg);
 	deregDeniedPacket.setAddress(address);
@@ -118,7 +130,7 @@ void Server::sendOfferConf(uint32 reqNum, uint32 itemNum, const std::string& des
 void Server::sendOfferDenied(uint32 reqNum, const std::string& reason, const IPV4Address& address) {
 	OfferDeniedMessage offerDeniedMsg;
 	offerDeniedMsg.reqNum = reqNum;
-	memcpy(offerDeniedMsg.reason, reason.c_str(), reason.size());
+	memcpy(offerDeniedMsg.reason, reason.c_str(), reason.size() + 1);
 
 	Packet offerDeniedPacket = serializeMessage(offerDeniedMsg);
 	offerDeniedPacket.setAddress(address);
@@ -331,6 +343,32 @@ void Server::endAuction(const Item& item) {
 	}
 }
 
+bool Server::isSeller(const std::string& seller) {
+	std::lock_guard<std::mutex> lock(g_auctionLock);
+
+	for (auto& pair : m_offeredItems) {
+		Item* item = pair.second;
+		if (item->getSeller() == seller) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool Server::isHighestBidder(const std::string& bidder) {
+	std::lock_guard<std::mutex> lock(g_auctionLock);
+
+	for (auto& pair : m_offeredItems) {
+		Item* item = pair.second;
+		if (item->getHighestBidder() == bidder) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void Server::handlePacket(const Packet& packet) {
 	MessageType type = static_cast<MessageType>(packet.getMessageData()[0]);
 	log(LogType::LOG_RECEIVE, type, packet.getAddress());
@@ -355,6 +393,16 @@ void Server::handlePacket(const Packet& packet) {
 void Server::handleRegisterPacket(const Packet& packet) {
 	RegisterMessage msg = deserializeMessage<RegisterMessage>(packet);
 
+	std::string name(msg.name);
+	// Check if same name
+	for (auto& pair : m_connections) {
+		Connection& connection = pair.second;
+		if (name == connection.getUniqueName()) {
+			sendUnregistered(msg.reqNum, "Name already exists", packet.getAddress());
+			return;
+		}
+	}
+
 	// Attempt to register
 	auto iter = m_connections.find(packet.getAddress().getSocketAddressAsString());
 	if (iter == m_connections.end()) {
@@ -377,6 +425,15 @@ void Server::handleDeregisterPacket(const Packet& packet) {
 	auto it = m_connections.find(packet.getAddress().getSocketAddressAsString());
 	if (it != m_connections.end())
 	{
+		if (isSeller(it->second.getAddress().getSocketAddressAsString())) {
+			sendDeregDenied(msg.reqNum, "Pending offer", packet.getAddress());
+			return;
+		}
+		if (isHighestBidder(it->second.getAddress().getSocketAddressAsString())) {
+			sendDeregDenied(msg.reqNum, "Highest bidder", packet.getAddress());
+			return;
+		}
+
 		// User was found in the registered table, remove him
 		sendDeregConf(msg.reqNum, packet.getAddress());
 
@@ -602,8 +659,6 @@ void Server::saveConnections() {
 		output << connection.getAddress().getSocketAddressAsString() << '\n';
 		output << connection.getAddress().getSocketPortAsString() << '\n';
 		output << connection.getUniqueName() << '\n';
-		output << connection.getOfferReqNumber() << '\n';
-		output << connection.getLastItemOfferedID() << '\n';
 	}
 
 	output << m_offeredItems.size() << '\n';
@@ -642,18 +697,11 @@ void Server::loadConnections() {
 		std::string ip;
 		std::string port;
 		std::string name;
-		uint32 reqNum = 0;
-		uint32 lastItemID = 0;
 		input >> ip;
 		input >> port;
 		input >> name;
-		input >> reqNum;
-		input >> lastItemID;
 
-		Connection connection(name, IPV4Address(ip, port));
-		connection.setOfferReqNumber(reqNum);
-		connection.setLastItemOfferedID(lastItemID);
-		m_connections[ip] = connection;
+		m_connections[ip] = Connection(name, IPV4Address(ip, port));
 	}
 
 	int32 numItems = 0;
