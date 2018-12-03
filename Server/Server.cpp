@@ -8,6 +8,7 @@
 
 #include <Mswsock.h>
 #include <iostream>
+#include <fstream>
 #include <mutex>
 
 void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work);
@@ -33,6 +34,7 @@ void Server::shutdown() {
 	m_running = false;
 	m_serverUDPSocket.close();
 	m_serverTCPSocket.close();
+	saveConnections();
 	m_connections.clear();
 
 	PostQueuedCompletionStatus(m_udpServiceIOPort, 0, 0, nullptr);
@@ -355,6 +357,8 @@ void Server::handleRegisterPacket(const Packet& packet) {
 	}
 	else {
 		log("[INFO] Client %s (%s) already registered", msg.name, packet.getAddress().getSocketAddressAsString().c_str());
+		iter->second.setUniqueName(msg.name);
+		iter->second.setAddress(packet.getAddress());
 	}
 
 	sendRegistered(msg.reqNum, std::string(msg.name), std::string(msg.iPAddress), std::string(msg.port), packet.getAddress());
@@ -462,7 +466,7 @@ void udpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 			break;
 		}
 	}
-	log("[INFO] UDP service routine shutdown.");
+	log("[INFO] UDP service routine shutdown");
 }
 
 void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
@@ -516,7 +520,7 @@ void tcpServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK
 		acceptedSocket = server->m_serverTCPSocket.acceptOverlapped(server->m_serverTCPBuffer);
 	}
 
-	log("[INFO] TCP service routine shutdown.");
+	log("[INFO] TCP service routine shutdown");
 }
 
 void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, PTP_WORK work) {
@@ -574,5 +578,59 @@ void connectionServiceRoutine(PTP_CALLBACK_INSTANCE instance, PVOID parameter, P
 
 		connection->receiveOverlapped();
 	}
-	log("[INFO] Connection service routine shutdown.");
+	log("[INFO] Connection service routine shutdown");
+}
+
+void Server::saveConnections() {
+	std::ofstream output("connections.dat");
+
+	if (!output) {
+		log("[ERROR] Failed to save connections to file");
+		return;
+	}
+
+	output << m_connections.size() << '\n';
+
+	for (auto& pair : m_connections) {
+		Connection& connection = pair.second;
+		output << connection.getAddress().getSocketAddressAsString() << '\n';
+		output << connection.getAddress().getSocketPortAsString() << '\n';
+		output << connection.getUniqueName() << '\n';
+		output << connection.getOfferReqNumber() << '\n';
+		output << connection.getLastItemOfferedID() << '\n';
+	}
+
+	output.close();
+}
+
+void Server::loadConnections() {
+	std::ifstream input("connections.dat");
+
+	if (!input) {
+		// if file not found do nothing
+		return;
+	}
+
+	int32 numConnections = 0;
+	input >> numConnections;
+
+	for (int32 i = 0; i < numConnections; i++) {
+		std::string ip;
+		std::string port;
+		std::string name;
+		uint32 reqNum = 0;
+		uint32 lastItemID = 0;
+		input >> ip;
+		input >> port;
+		input >> name;
+		input >> reqNum;
+		input >> lastItemID;
+
+		Connection connection(name, IPV4Address(ip, port));
+		connection.setOfferReqNumber(reqNum);
+		connection.setLastItemOfferedID(lastItemID);
+		m_connections[ip] = connection;
+	}
+
+	input.close();
 }

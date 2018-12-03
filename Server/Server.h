@@ -68,5 +68,8 @@ public:
 	void startAuction(const Item& item);
 	void bid(uint32 itemID, float32 newBid, const IPV4Address& bidder);
 	void endAuction(const Item& item);
+
+	void saveConnections();
+	void loadConnections();
 };
 

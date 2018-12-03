@@ -38,6 +38,8 @@ public:
 	OverlappedBuffer& getOverlappedBuffer() { return m_overlappedBuffer; }
 	const IPV4Address& getAddress() const { return m_address; }
 	std::string getUniqueName() const { return m_uniqueName; }
+	void setUniqueName(const char* name) { m_uniqueName = std::string(name); }
+	void setAddress(const IPV4Address& address) { m_address = address; }
 
 	bool isConnected() const { return m_state == ConnectionState::CONNECTED; }
 

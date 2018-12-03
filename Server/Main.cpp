@@ -61,6 +61,7 @@ void init(const std::string& ip) {
 	WSA::init();
 
 	g_Server = new Server(IPV4Address(ip, DEFAULT_PORT));
+	g_Server->loadConnections();
 	g_Server->startUDPServiceThread();
 	g_Server->startTCPServiceThread();
 	g_Server->startConnectionServiceThread();
